@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .adaptive import AdaptiveSummary, summarize_attempt_progress
-from .baseline import compare_capture_against_baselines
+from .baseline import compare_capture_against_baselines, promote_capture_to_example
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory, load_session_memory
 from .orchestration import (
@@ -18,9 +18,10 @@ from .orchestration import (
     write_request_user_input_artifact,
 )
 from .postprocess import codexify_message
+from .reports import build_report
 from .roma_runtime import RomaAttemptResult, run_roma_chat
 from .strategy import build_steered_prompt, candidate_strategies, choose_strategy
-from .workflow import ObservationRunResult, observe_prompt
+from .workflow import ObservationRunResult, observe_prompt, slugify_prompt
 
 
 @dataclass(frozen=True)
@@ -139,6 +140,32 @@ def run_chat(
                 session_id,
                 [MemoryTurn(role="user", text=prompt), MemoryTurn(role="assistant", text=final_message)],
             )
+        promoted_example_dir = None
+        comparison_summary_path = None
+        if result.normalized_path.exists():
+            if promote_dir:
+                promoted_example_dir = promote_capture_to_example(
+                    capture_dir=result.session_dir,
+                    output_root=promote_dir,
+                    example_id=slugify_prompt(prompt),
+                    prompt=prompt,
+                )
+            comparison_summary_path = result.session_dir / "comparison-summary.md"
+            comparison_summary_path.write_text(
+                build_report(
+                    example_id=slugify_prompt(prompt),
+                    prompt=prompt,
+                    normalized_events=read_jsonl(result.normalized_path),
+                    notes=(
+                        f"strategy={strategy.strategy_id}; "
+                        f"attempts={[attempt.strategy.strategy_id for attempt in attempts]}; "
+                        f"policy={orchestration.policy_summary}; "
+                        f"adaptive={adaptive_summary.notes}"
+                    ),
+                )
+                + "\n",
+                encoding="utf-8",
+            )
         return ChatRunSummary(
             final_message=final_message,
             strategy_id=strategy.strategy_id,
@@ -147,10 +174,10 @@ def run_chat(
             orchestration_summary=orchestration.policy_summary,
             session_dir=result.session_dir,
             normalized_path=result.normalized_path,
-            promoted_example_dir=None,
+            promoted_example_dir=promoted_example_dir,
             baseline_matches=len([item for item in comparison_results if item.matches]),
             baseline_total=len(comparison_results),
-            comparison_summary_path=None,
+            comparison_summary_path=comparison_summary_path,
             request_user_input_path=request_user_input_path,
             adaptive_notes=adaptive_summary.notes,
             memory_path=memory_path,

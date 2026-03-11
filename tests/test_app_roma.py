@@ -51,3 +51,7 @@ def test_run_chat_uses_roma_runtime_for_roma_profile(monkeypatch, tmp_path: Path
     assert summary.final_message == "hello from roma"
     assert summary.baseline_total == 1
     assert summary.adaptive_notes == "Attempt scores: [0]"
+    assert summary.promoted_example_dir is not None
+    assert summary.promoted_example_dir.exists()
+    assert summary.comparison_summary_path is not None
+    assert summary.comparison_summary_path.exists()
