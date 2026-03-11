@@ -150,6 +150,46 @@ async function readFileTool(args = {}) {
     .join('\n');
 }
 
+async function grepTextTool(args = {}) {
+  const pattern = typeof args.pattern === 'string' ? args.pattern.trim() : '';
+  if (!pattern) {
+    return 'Error: pattern is required.';
+  }
+  const dir = resolveToolPath(args.path || '.');
+  const maxResults = Number.isFinite(args.max_results) ? Math.max(1, Math.min(200, Number(args.max_results))) : 50;
+  const caseSensitive = args.case_sensitive === true;
+  const results = [];
+  const matcher = caseSensitive
+    ? (text) => text.includes(pattern)
+    : (text) => text.toLowerCase().includes(pattern.toLowerCase());
+  const visit = (current) => {
+    if (results.length >= maxResults) return;
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.venv') continue;
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+        if (results.length >= maxResults) return;
+        continue;
+      }
+      let lines;
+      try {
+        lines = fs.readFileSync(fullPath, 'utf-8').split('\n');
+      } catch {
+        continue;
+      }
+      for (let index = 0; index < lines.length; index += 1) {
+        if (matcher(lines[index])) {
+          results.push(`${path.relative(toolCwd, fullPath)}:${index + 1}: ${lines[index]}`);
+          if (results.length >= maxResults) return;
+        }
+      }
+    }
+  };
+  visit(dir);
+  return results.length > 0 ? results.join('\n') : '(no matches)';
+}
+
 const toolSpecs = enableTools
   ? [
       {
@@ -194,6 +234,21 @@ const toolSpecs = enableTools
       },
       {
         type: 'function',
+        name: 'grep_text',
+        description: 'Search file contents in the workspace for a text pattern.',
+        parameters: {
+          type: 'object',
+          required: ['pattern'],
+          properties: {
+            pattern: { type: 'string', description: 'Text pattern to search for.' },
+            path: { type: 'string', description: 'Search root relative to the workspace.' },
+            max_results: { type: 'number', description: 'Maximum matching lines to return.' },
+            case_sensitive: { type: 'boolean', description: 'Whether matching is case-sensitive.' },
+          },
+        },
+      },
+      {
+        type: 'function',
         name: 'bash',
         description: 'Run shell commands to inspect the local workspace and gather evidence.',
         parameters: {
@@ -216,6 +271,7 @@ const localTools = enableTools
       list_dir: listDirTool,
       search_files: searchFilesTool,
       read_file: readFileTool,
+      grep_text: grepTextTool,
       bash: runBashTool,
     }
   : {};

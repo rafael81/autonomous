@@ -39,9 +39,11 @@ def test_normalize_roma_events_preserves_builtin_tool_names():
             {"type": "tool_result", "name": "list_dir", "callId": "call-1", "output": "file\tREADME.md"},
             {"type": "tool_call", "name": "read_file", "callId": "call-2", "args": {"path": "README.md"}},
             {"type": "tool_result", "name": "read_file", "callId": "call-2", "output": "1: # autonomos"},
+            {"type": "tool_call", "name": "grep_text", "callId": "call-3", "args": {"pattern": "autonomos"}},
+            {"type": "tool_result", "name": "grep_text", "callId": "call-3", "output": "README.md:1: # autonomos"},
             {"type": "session_end", "ok": True},
         ],
     )
 
     tool_names = [row["payload"].get("tool_name") for row in rows if "tool_call" in row["event_type"]]
-    assert tool_names == ["list_dir", "list_dir", "read_file", "read_file"]
+    assert tool_names == ["list_dir", "list_dir", "read_file", "read_file", "grep_text", "grep_text"]
