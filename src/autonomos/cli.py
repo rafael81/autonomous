@@ -9,6 +9,7 @@ from .codex_exec import build_exec_command, describe_ws_runtime, render_codex_co
 from .compare import compare_normalized_sequences
 from .config import load_ws_auth_config
 from .examples import build_examples_dataset
+from .exec_normalizer import normalize_exec_events
 from .io import read_jsonl
 from .live_capture import run_capture
 
@@ -41,6 +42,10 @@ def build_parser() -> argparse.ArgumentParser:
     compare = subparsers.add_parser("compare", help="Compare two normalized JSONL traces structurally.")
     compare.add_argument("expected", help="Expected normalized.jsonl path.")
     compare.add_argument("actual", help="Actual normalized.jsonl path.")
+
+    normalize_exec = subparsers.add_parser("normalize-exec", help="Normalize codex exec JSONL into shared schema JSONL.")
+    normalize_exec.add_argument("input", help="Path to raw codex exec JSONL.")
+    normalize_exec.add_argument("output", help="Path to write normalized JSONL.")
     return parser
 
 
@@ -82,6 +87,14 @@ def main() -> int:
         for detail in result.details:
             print(detail)
         return 0 if result.matches else 1
+    if args.command == "normalize-exec":
+        rows = read_jsonl(Path(args.input))
+        normalized = normalize_exec_events(rows)
+        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+        from .io import write_jsonl
+        write_jsonl(Path(args.output), normalized)
+        print(f"normalized {len(rows)} raw events into {len(normalized)} events")
+        return 0
 
     parser.print_help()
     return 0
