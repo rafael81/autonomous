@@ -229,7 +229,11 @@ def extract_final_message(normalized_path: Path | None) -> str | None:
     rows = read_jsonl(normalized_path)
     for row in reversed(rows):
         if row["event_type"] == "assistant_message":
-            return row["payload"].get("text")
+            text = row["payload"].get("text")
+            if _is_empty_runtime_fallback(text):
+                synthesized = _synthesize_from_tool_results(rows)
+                return synthesized or text
+            return text
     return None
 
 
@@ -266,3 +270,32 @@ def _looks_like_access_fallback(text: str) -> bool:
             "run the following commands",
         )
     )
+
+
+def _is_empty_runtime_fallback(text: str | None) -> bool:
+    if not text:
+        return False
+    lowered = text.strip().lower()
+    return lowered in {
+        "요청을 처리했지만 텍스트 응답이 없습니다.",
+        "no response.",
+        "no final assistant message was captured.",
+    }
+
+
+def _synthesize_from_tool_results(rows: list[dict]) -> str | None:
+    tool_results = [row for row in rows if row.get("event_type") == "tool_call_result"]
+    if not tool_results:
+        return None
+    lines = ["Observed workspace structure:"]
+    for row in tool_results[:4]:
+        tool_name = row["payload"].get("tool_name", "tool")
+        output = str(row["payload"].get("output", "")).strip()
+        if not output:
+            continue
+        preview_lines = output.splitlines()[:4]
+        preview = "; ".join(preview_lines)
+        lines.append(f"- {tool_name}: {preview}")
+    if len(lines) == 1:
+        return None
+    return "\n".join(lines)
