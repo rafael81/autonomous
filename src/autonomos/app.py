@@ -100,7 +100,7 @@ def run_chat(
             if any(item.matches for item in comparison_results):
                 break
 
-        best_attempt = min(attempts, key=lambda item: (item.comparison_matches == 0, item.comparison_score))
+        best_attempt = min(attempts, key=lambda item: _rank_roma_attempt(prompt, item))
         strategy = best_attempt.strategy
         result = best_attempt.result
         final_message = codexify_message(result.final_message)
@@ -231,3 +231,38 @@ def extract_final_message(normalized_path: Path | None) -> str | None:
         if row["event_type"] == "assistant_message":
             return row["payload"].get("text")
     return None
+
+
+def _rank_roma_attempt(prompt: str, attempt: RomaAttemptResult) -> tuple[int, int, int, int, str]:
+    prompt_lower = prompt.lower()
+    inspection_prompt = any(
+        token in prompt_lower
+        for token in ("list", "read", "inspect", "check", "find", "search", "repository", "directory", "file")
+    )
+    rows = read_jsonl(attempt.result.normalized_path) if attempt.result.normalized_path.exists() else []
+    tool_events = [row for row in rows if row.get("event_type") in {"tool_call_request", "tool_call_result"}]
+    tool_bonus = 0 if (inspection_prompt and tool_events) else 1
+    final_message = extract_final_message(attempt.result.normalized_path) or ""
+    fallback_penalty = 1 if _looks_like_access_fallback(final_message) else 0
+    return (
+        attempt.comparison_matches == 0,
+        fallback_penalty,
+        tool_bonus,
+        attempt.comparison_score,
+        attempt.strategy.strategy_id,
+    )
+
+
+def _looks_like_access_fallback(text: str) -> bool:
+    lowered = text.lower()
+    return any(
+        phrase in lowered
+        for phrase in (
+            "cannot access",
+            "can't access",
+            "직접 접근",
+            "결과를 붙여주시면",
+            "you can run",
+            "run the following commands",
+        )
+    )
