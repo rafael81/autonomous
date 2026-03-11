@@ -2,6 +2,7 @@ import json
 
 from autonomos.codex_exec import build_exec_command, describe_ws_runtime, render_codex_config_toml
 from autonomos.config import load_codex_auth_file, load_ws_auth_config
+from autonomos.strategy import choose_strategy
 
 
 def test_load_ws_auth_config_from_env():
@@ -32,6 +33,15 @@ def test_build_exec_command_includes_json_and_profile():
     command = build_exec_command(prompt="hello", profile="openai_ws", json_output=True)
 
     assert command == ["codex", "exec", "--profile", "openai_ws", "--json", "hello"]
+
+
+def test_build_exec_command_applies_strategy_runtime_policy():
+    strategy = choose_strategy("Check the repository and verify the tests.")
+    command = build_exec_command(prompt="hello", profile="openai_ws", json_output=True, strategy=strategy)
+
+    assert "--sandbox" in command
+    assert "workspace-write" in command
+    assert "--full-auto" in command
 
 
 def test_load_codex_auth_file_reads_token_and_account(tmp_path):

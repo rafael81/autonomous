@@ -6,12 +6,14 @@ def test_choose_strategy_selects_planning():
 
     assert decision.strategy_id == "planning"
     assert decision.baseline_example_id == "example-06-plan-only"
+    assert decision.sandbox_mode == "read-only"
 
 
 def test_choose_strategy_selects_tool_oriented():
     decision = choose_strategy("Check the repository and verify the tests.")
 
     assert decision.strategy_id == "tool_oriented"
+    assert decision.prefer_full_auto is True
 
 
 def test_build_steered_prompt_embeds_guidance():

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .config import WebSocketAuthConfig
+from .strategy import StrategyDecision
 
 
 def render_codex_config_toml(auth: WebSocketAuthConfig) -> str:
@@ -36,12 +37,24 @@ def describe_ws_runtime(auth: WebSocketAuthConfig) -> dict[str, object]:
     }
 
 
-def build_exec_command(*, prompt: str, profile: str, cwd: Path | None = None, json_output: bool = True) -> list[str]:
+def build_exec_command(
+    *,
+    prompt: str,
+    profile: str,
+    cwd: Path | None = None,
+    json_output: bool = True,
+    strategy: StrategyDecision | None = None,
+) -> list[str]:
     command = ["codex", "exec"]
     if profile:
         command.extend(["--profile", profile])
     if cwd:
         command.extend(["--cwd", str(cwd)])
+    if strategy:
+        command.extend(["--sandbox", strategy.sandbox_mode])
+        command.extend(["-c", f'model_reasoning_effort="{strategy.reasoning_effort}"'])
+        if strategy.prefer_full_auto:
+            command.append("--full-auto")
     if json_output:
         command.append("--json")
     command.append(prompt)

@@ -11,6 +11,10 @@ class StrategyDecision:
     baseline_example_id: str
     rationale: str
     steering_prompt: str
+    sandbox_mode: str
+    reasoning_effort: str
+    prefer_full_auto: bool
+    output_style: str
 
 
 STRATEGY_LIBRARY: tuple[StrategyDecision, ...] = (
@@ -22,6 +26,10 @@ STRATEGY_LIBRARY: tuple[StrategyDecision, ...] = (
             "Respond directly and briefly. Avoid unnecessary planning. "
             "Do not call tools unless the user clearly asks for live verification or codebase inspection."
         ),
+        sandbox_mode="read-only",
+        reasoning_effort="low",
+        prefer_full_auto=False,
+        output_style="brief",
     ),
     StrategyDecision(
         strategy_id="long_form",
@@ -31,6 +39,10 @@ STRATEGY_LIBRARY: tuple[StrategyDecision, ...] = (
             "Produce a polished long-form answer. Stream naturally in sections if helpful. "
             "Do not fabricate tool use."
         ),
+        sandbox_mode="read-only",
+        reasoning_effort="medium",
+        prefer_full_auto=False,
+        output_style="long",
     ),
     StrategyDecision(
         strategy_id="tool_oriented",
@@ -40,6 +52,10 @@ STRATEGY_LIBRARY: tuple[StrategyDecision, ...] = (
             "Inspect the environment first, then answer from observed evidence. "
             "Use the minimum necessary tools and summarize findings clearly."
         ),
+        sandbox_mode="workspace-write",
+        reasoning_effort="medium",
+        prefer_full_auto=True,
+        output_style="evidence_first",
     ),
     StrategyDecision(
         strategy_id="planning",
@@ -49,6 +65,10 @@ STRATEGY_LIBRARY: tuple[StrategyDecision, ...] = (
             "Focus on a decision-complete implementation plan. "
             "Do not mutate files unless the user explicitly asks to implement."
         ),
+        sandbox_mode="read-only",
+        reasoning_effort="medium",
+        prefer_full_auto=False,
+        output_style="structured_plan",
     ),
     StrategyDecision(
         strategy_id="safety_refusal",
@@ -57,6 +77,10 @@ STRATEGY_LIBRARY: tuple[StrategyDecision, ...] = (
         steering_prompt=(
             "Refuse unsafe assistance briefly and redirect to a safe alternative."
         ),
+        sandbox_mode="read-only",
+        reasoning_effort="low",
+        prefer_full_auto=False,
+        output_style="brief_refusal",
     ),
 )
 
@@ -80,6 +104,8 @@ def build_steered_prompt(user_prompt: str, decision: StrategyDecision) -> str:
         "You are Autonomos, a Codex-aligned CLI assistant.\n"
         f"Preferred interaction archetype: {decision.strategy_id}.\n"
         f"Reference baseline: {decision.baseline_example_id}.\n"
+        f"Output style: {decision.output_style}.\n"
+        f"Reasoning effort: {decision.reasoning_effort}.\n"
         f"Execution guidance: {decision.steering_prompt}\n\n"
         "User request:\n"
         f"{user_prompt}"

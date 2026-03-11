@@ -35,7 +35,7 @@ def observe_prompt(
 ) -> ObservationRunResult:
     strategy = choose_strategy(prompt)
     steered_prompt = build_steered_prompt(prompt, strategy)
-    command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd)
+    command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd, strategy=strategy)
     result: LiveCaptureResult = runner(command, cwd=cwd)
     saved = save_capture_session(result=result, prompt=prompt, output_root=captures_dir)
 
