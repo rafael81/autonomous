@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .baseline import compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command, describe_ws_runtime, render_codex_config_toml
 from .compare import compare_normalized_sequences
 from .config import load_ws_auth_config
@@ -47,6 +48,16 @@ def build_parser() -> argparse.ArgumentParser:
     normalize_exec = subparsers.add_parser("normalize-exec", help="Normalize codex exec JSONL into shared schema JSONL.")
     normalize_exec.add_argument("input", help="Path to raw codex exec JSONL.")
     normalize_exec.add_argument("output", help="Path to write normalized JSONL.")
+
+    promote = subparsers.add_parser("promote-capture", help="Promote a saved capture session into example dataset format.")
+    promote.add_argument("capture_dir", help="Capture session directory.")
+    promote.add_argument("example_id", help="New example id.")
+    promote.add_argument("--output-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    promote.add_argument("--prompt", help="Optional prompt override.")
+
+    compare_baselines = subparsers.add_parser("compare-baselines", help="Compare a normalized capture against all baseline examples.")
+    compare_baselines.add_argument("normalized", help="Path to normalized capture JSONL.")
+    compare_baselines.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
     return parser
 
 
@@ -100,6 +111,26 @@ def main() -> int:
         write_jsonl(Path(args.output), normalized)
         print(f"normalized {len(rows)} raw events into {len(normalized)} events")
         return 0
+    if args.command == "promote-capture":
+        example_dir = promote_capture_to_example(
+            capture_dir=Path(args.capture_dir),
+            output_root=Path(args.output_dir),
+            example_id=args.example_id,
+            prompt=args.prompt,
+        )
+        print(f"promoted capture to {example_dir}")
+        return 0
+    if args.command == "compare-baselines":
+        results = compare_capture_against_baselines(
+            normalized_path=Path(args.normalized),
+            baselines_root=Path(args.baselines_dir),
+        )
+        matched = [result for result in results if result.matches]
+        print(f"matched={len(matched)} total={len(results)}")
+        for result in results:
+            status = "MATCH" if result.matches else "DIFF"
+            print(f"{status} {result.example_id}: {result.summary}")
+        return 0 if matched else 1
 
     parser.print_help()
     return 0
