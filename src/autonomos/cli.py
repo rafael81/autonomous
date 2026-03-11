@@ -13,6 +13,7 @@ from .examples import build_examples_dataset
 from .exec_normalizer import normalize_exec_events
 from .io import read_jsonl
 from .live_capture import run_capture, save_capture_session
+from .workflow import observe_prompt
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -58,6 +59,15 @@ def build_parser() -> argparse.ArgumentParser:
     compare_baselines = subparsers.add_parser("compare-baselines", help="Compare a normalized capture against all baseline examples.")
     compare_baselines.add_argument("normalized", help="Path to normalized capture JSONL.")
     compare_baselines.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+
+    observe = subparsers.add_parser("observe", help="Run the full observation pipeline: capture, normalize, promote, compare.")
+    observe.add_argument("prompt", help="Prompt to send to codex exec.")
+    observe.add_argument("--profile", default="openai_ws", help="Codex profile name.")
+    observe.add_argument("--cwd", default=".", help="Working directory for codex exec.")
+    observe.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    observe.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    observe.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    observe.add_argument("--example-id", help="Override promoted example id.")
     return parser
 
 
@@ -131,6 +141,26 @@ def main() -> int:
             status = "MATCH" if result.matches else "DIFF"
             print(f"{status} {result.example_id}: {result.summary}")
         return 0 if matched else 1
+    if args.command == "observe":
+        outcome = observe_prompt(
+            prompt=args.prompt,
+            profile=args.profile,
+            cwd=Path(args.cwd),
+            captures_dir=Path(args.captures_dir),
+            promote_dir=Path(args.promote_dir),
+            baselines_dir=Path(args.baselines_dir),
+            example_id=args.example_id,
+        )
+        print(f"session_dir={outcome.capture.session_dir}")
+        if outcome.capture.normalized_path:
+            print(f"normalized_jsonl={outcome.capture.normalized_path}")
+        if outcome.promoted_example_dir:
+            print(f"promoted_example={outcome.promoted_example_dir}")
+        if outcome.summary_path:
+            print(f"comparison_summary={outcome.summary_path}")
+        matched = [item for item in outcome.comparison_results if item.matches]
+        print(f"baseline_matches={len(matched)}/{len(outcome.comparison_results)}")
+        return 0 if outcome.capture.normalized_path else outcome.capture.meta_path.exists()
 
     parser.print_help()
     return 0
