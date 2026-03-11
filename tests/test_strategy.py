@@ -46,3 +46,9 @@ def test_candidate_strategies_shortens_for_project_analysis():
     decisions = candidate_strategies("현재 내 프로젝트 분석")
 
     assert [decision.strategy_id for decision in decisions] == ["tool_oriented"]
+
+
+def test_candidate_strategies_shortens_for_structure_inspection():
+    decisions = candidate_strategies("현재 프로젝트 구조 분석")
+
+    assert [decision.strategy_id for decision in decisions] == ["tool_oriented"]

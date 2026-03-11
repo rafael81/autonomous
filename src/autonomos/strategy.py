@@ -112,6 +112,8 @@ def candidate_strategies(prompt: str, limit: int = 3) -> list[StrategyDecision]:
             "현재 내 프로젝트 분석",
             "현재 프로젝트 분석",
             "프로젝트 분석",
+            "현재 프로젝트 구조 분석",
+            "프로젝트 구조 분석",
         )
     ):
         return [_by_id("tool_oriented")]

@@ -34,6 +34,27 @@ DEFAULT_POLICY = PromptPolicy(
 
 def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -> PromptPolicy:
     text = prompt.lower()
+    review_prompt = any(
+        token in text
+        for token in (
+            "review",
+            "code review",
+            "review this change",
+            "review current changes",
+            "리뷰",
+        )
+    )
+    structure_prompt = any(
+        token in text
+        for token in (
+            "project structure",
+            "repository structure",
+            "현재 프로젝트 구조 분석",
+            "프로젝트 구조 분석",
+            "프로젝트 구조",
+            "structure",
+        )
+    )
     project_analysis_prompt = any(
         token in text
         for token in (
@@ -43,7 +64,6 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             "현재 내 프로젝트 분석",
             "현재 프로젝트 분석",
             "프로젝트 분석",
-            "프로젝트 구조 분석",
         )
     )
     inspection_prompt = any(
@@ -66,6 +86,17 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
     ) or (strategy is not None and strategy.strategy_id == "tool_oriented")
     verification_prompt = any(token in text for token in ("test", "verify", "pytest", "check"))
 
+    if review_prompt:
+        return PromptPolicy(
+            prompt_mode="code_review",
+            tool_budget=8,
+            max_repeated_tool_calls=2,
+            preferred_roots=("src", "tests", "README.md", "pyproject.toml"),
+            excluded_roots=DEFAULT_POLICY.excluded_roots,
+            stop_after_evidence=3,
+            preferred_tools=("bash", "glob_paths", "grep_text", "read_file"),
+            fallback_tool="bash",
+        )
     if project_analysis_prompt:
         return PromptPolicy(
             prompt_mode="project_analysis",
@@ -75,6 +106,17 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             excluded_roots=DEFAULT_POLICY.excluded_roots,
             stop_after_evidence=6,
             preferred_tools=("bash", "read_file", "grep_text", "glob_paths", "list_dir"),
+            fallback_tool="bash",
+        )
+    if structure_prompt:
+        return PromptPolicy(
+            prompt_mode="structure_inspection",
+            tool_budget=5,
+            max_repeated_tool_calls=2,
+            preferred_roots=("src", "tests", "README.md", "pyproject.toml"),
+            excluded_roots=DEFAULT_POLICY.excluded_roots,
+            stop_after_evidence=2,
+            preferred_tools=("list_dir", "glob_paths", "read_file", "search_files", "grep_text"),
             fallback_tool="bash",
         )
     if inspection_prompt and verification_prompt:
@@ -132,6 +174,13 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
             planning_penalty = 1
         if "pytest" in lowered or "passed" in lowered or "테스트" in lowered:
             substantive_evidence_penalty = 0
+    elif policy.prompt_mode == "structure_inspection":
+        if not any(name in {"list_dir", "glob_paths", "read_file"} for name in tool_names):
+            substantive_evidence_penalty = 1
+    elif policy.prompt_mode == "code_review":
+        lowered = final_message.lower()
+        if "prioritized" not in lowered and "risk" not in lowered and "finding" not in lowered:
+            substantive_evidence_penalty = 1
 
     access_fallback_penalty = 1 if looks_like_access_fallback(final_message) else 0
     empty_fallback_penalty = 1 if is_empty_runtime_fallback(final_message) else 0
