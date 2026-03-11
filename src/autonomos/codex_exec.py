@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .config import load_ws_auth_config
 from .config import WebSocketAuthConfig
 from .strategy import StrategyDecision
 
@@ -37,6 +38,35 @@ def describe_ws_runtime(auth: WebSocketAuthConfig) -> dict[str, object]:
     }
 
 
+def build_provider_override_args(
+    provider_name: str = "autonomos_ws",
+    auth: WebSocketAuthConfig | None = None,
+) -> list[str]:
+    auth = auth or load_ws_auth_config()
+    base_url = auth.base_url.replace("wss://", "https://").replace("ws://", "http://")
+    wire_api = "responses"
+    args = [
+        "-c",
+        f'model_provider="{provider_name}"',
+        "-c",
+        f'model_providers.{provider_name}.name="{provider_name}"',
+        "-c",
+        f'model_providers.{provider_name}.base_url="{base_url}"',
+        "-c",
+        f'model_providers.{provider_name}.wire_api="{wire_api}"',
+        "-c",
+        f'model="{auth.model}"',
+    ]
+    if auth.api_key:
+        args.extend(
+            [
+                "-c",
+                f'model_providers.{provider_name}.experimental_bearer_token="{auth.api_key}"',
+            ]
+        )
+    return args
+
+
 def build_exec_command(
     *,
     prompt: str,
@@ -46,10 +76,12 @@ def build_exec_command(
     strategy: StrategyDecision | None = None,
 ) -> list[str]:
     command = ["codex", "exec"]
-    if profile:
+    if profile and profile != "autonomos_direct":
         command.extend(["--profile", profile])
+    else:
+        command.extend(build_provider_override_args())
     if cwd:
-        command.extend(["--cwd", str(cwd)])
+        command.extend(["--cd", str(cwd)])
     if strategy:
         command.extend(["--sandbox", strategy.sandbox_mode])
         command.extend(["-c", f'model_reasoning_effort="{strategy.reasoning_effort}"'])

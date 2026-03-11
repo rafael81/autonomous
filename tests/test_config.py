@@ -44,6 +44,17 @@ def test_build_exec_command_applies_strategy_runtime_policy():
     assert "--full-auto" in command
 
 
+def test_build_exec_command_can_use_direct_provider_overrides(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    command = build_exec_command(prompt="hello", profile="autonomos_direct", json_output=True)
+
+    assert command[0:2] == ["codex", "exec"]
+    assert "--profile" not in command
+    assert 'model_provider="autonomos_ws"' in command
+    assert not any(".env_key=" in part for part in command)
+    assert any("experimental_bearer_token" in part for part in command)
+
+
 def test_load_codex_auth_file_reads_token_and_account(tmp_path):
     auth_path = tmp_path / "auth.json"
     auth_path.write_text(json.dumps({"tokens": {"access_token": "abc", "account_id": "acct"}}), encoding="utf-8")
