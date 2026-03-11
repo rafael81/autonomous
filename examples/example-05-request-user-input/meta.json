@@ -1,0 +1,12 @@
+{
+  "example_id": "example-05-request-user-input",
+  "captured_at": "2026-03-11T00:00:00Z",
+  "codex_source": {
+    "repo": "/Users/user/project/codex",
+    "commit": "a4a9536fd"
+  },
+  "model": "mixed-observation",
+  "capture_mode": "synthetic",
+  "repro_command": "autonomos build-examples --output-dir examples  # includes example-05-request-user-input",
+  "prompt": "Ask me to choose a direction first."
+}

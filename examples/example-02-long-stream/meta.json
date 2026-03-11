@@ -1,0 +1,12 @@
+{
+  "example_id": "example-02-long-stream",
+  "captured_at": "2026-03-11T00:00:00Z",
+  "codex_source": {
+    "repo": "/Users/user/project/codex",
+    "commit": "a4a9536fd"
+  },
+  "model": "mixed-observation",
+  "capture_mode": "fixture_capture",
+  "repro_command": "autonomos build-examples --output-dir examples  # includes example-02-long-stream",
+  "prompt": "Write a long story."
+}
