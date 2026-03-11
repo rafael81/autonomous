@@ -108,6 +108,8 @@ def run_chat(
                     comparison_matches=len([item for item in comparison_results if item.matches]),
                 )
             )
+            if _should_short_circuit_roma_attempts(prompt=prompt, attempt=attempts[-1]):
+                break
             retry_appendix = build_retry_appendix(orchestration.retry_reason)
             if any(item.matches for item in comparison_results):
                 break
@@ -265,3 +267,15 @@ def _synthesize_from_tool_results(rows: list[dict]) -> str | None:
     if len(lines) == 1:
         return None
     return "\n".join(lines)
+
+
+def _should_short_circuit_roma_attempts(*, prompt: str, attempt: RomaAttemptResult) -> bool:
+    policy = infer_prompt_policy(prompt, attempt.strategy)
+    if policy.prompt_mode != "general":
+        return False
+    if attempt.strategy.strategy_id != "simple_answer":
+        return False
+    rows = read_jsonl(attempt.result.normalized_path) if attempt.result.normalized_path.exists() else []
+    has_tool_events = any(row.get("event_type") in {"tool_call_request", "tool_call_result"} for row in rows)
+    final_message = extract_final_message(attempt.result.normalized_path)
+    return bool(final_message) and not has_tool_events and not is_empty_runtime_fallback(final_message)
