@@ -21,6 +21,7 @@ from .orchestration import (
     write_approval_artifact,
     write_request_user_input_artifact,
 )
+from .policy import infer_prompt_policy, render_policy_guidance
 from .strategy import StrategyDecision, build_steered_prompt, candidate_strategies
 
 
@@ -67,7 +68,16 @@ def observe_prompt(
     user_input_prefix = render_request_user_input_response(request_user_input_response_path)
     approval_prefix = render_approval_response(approval_response_path)
     for attempt_index, strategy in enumerate(strategies, start=1):
-        steered_prompt = memory_prefix + approval_prefix + user_input_prefix + build_steered_prompt(prompt, strategy) + retry_appendix
+        policy_guidance = render_policy_guidance(infer_prompt_policy(prompt, strategy))
+        steered_prompt = (
+            memory_prefix
+            + approval_prefix
+            + user_input_prefix
+            + policy_guidance
+            + "\n"
+            + build_steered_prompt(prompt, strategy)
+            + retry_appendix
+        )
         command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd, strategy=strategy)
         result: LiveCaptureResult = runner(command, cwd=cwd)
         saved = save_capture_session(

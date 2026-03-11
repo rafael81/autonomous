@@ -17,6 +17,7 @@ from .orchestration import (
     write_approval_artifact,
     write_request_user_input_artifact,
 )
+from .policy import infer_prompt_policy, is_empty_runtime_fallback, rank_roma_attempt, render_policy_guidance
 from .postprocess import codexify_message
 from .reports import build_report
 from .roma_runtime import RomaAttemptResult, run_roma_chat
@@ -65,13 +66,22 @@ def run_chat(
         approval_prefix = render_approval_response(approval_response_path)
         memory_prefix = render_memory_context(memory_turns)
         for attempt_index, strategy in enumerate(candidate_strategies(prompt), start=1):
-            steered_prompt = memory_prefix + approval_prefix + user_input_prefix + build_steered_prompt(prompt, strategy) + retry_appendix
+            policy_guidance = render_policy_guidance(infer_prompt_policy(prompt, strategy))
+            steered_prompt = (
+                memory_prefix
+                + approval_prefix
+                + user_input_prefix
+                + policy_guidance
+                + "\n"
+                + build_steered_prompt(prompt, strategy)
+                + retry_appendix
+            )
             result = run_roma_chat(
                 prompt=steered_prompt,
                 history=memory_turns,
                 captures_dir=captures_dir / f"attempt-{attempt_index}-{strategy.strategy_id}",
                 cwd=cwd,
-                instructions=memory_prefix + build_steered_prompt(prompt, strategy),
+                instructions=memory_prefix + policy_guidance + "\n" + build_steered_prompt(prompt, strategy),
                 enable_tools=strategy.strategy_id == "tool_oriented",
             )
             comparison_results = (
@@ -100,7 +110,7 @@ def run_chat(
             if any(item.matches for item in comparison_results):
                 break
 
-        best_attempt = min(attempts, key=lambda item: _rank_roma_attempt(prompt, item))
+        best_attempt = min(attempts, key=lambda item: rank_roma_attempt(prompt, item))
         strategy = best_attempt.strategy
         result = best_attempt.result
         final_message = codexify_message(result.final_message)
@@ -230,57 +240,11 @@ def extract_final_message(normalized_path: Path | None) -> str | None:
     for row in reversed(rows):
         if row["event_type"] == "assistant_message":
             text = row["payload"].get("text")
-            if _is_empty_runtime_fallback(text):
+            if is_empty_runtime_fallback(text):
                 synthesized = _synthesize_from_tool_results(rows)
                 return synthesized or text
             return text
     return None
-
-
-def _rank_roma_attempt(prompt: str, attempt: RomaAttemptResult) -> tuple[int, int, int, int, str]:
-    prompt_lower = prompt.lower()
-    inspection_prompt = any(
-        token in prompt_lower
-        for token in ("list", "read", "inspect", "check", "find", "search", "repository", "directory", "file")
-    )
-    rows = read_jsonl(attempt.result.normalized_path) if attempt.result.normalized_path.exists() else []
-    tool_events = [row for row in rows if row.get("event_type") in {"tool_call_request", "tool_call_result"}]
-    tool_bonus = 0 if (inspection_prompt and tool_events) else 1
-    final_message = extract_final_message(attempt.result.normalized_path) or ""
-    fallback_penalty = 1 if _looks_like_access_fallback(final_message) else 0
-    return (
-        attempt.comparison_matches == 0,
-        fallback_penalty,
-        tool_bonus,
-        attempt.comparison_score,
-        attempt.strategy.strategy_id,
-    )
-
-
-def _looks_like_access_fallback(text: str) -> bool:
-    lowered = text.lower()
-    return any(
-        phrase in lowered
-        for phrase in (
-            "cannot access",
-            "can't access",
-            "직접 접근",
-            "결과를 붙여주시면",
-            "you can run",
-            "run the following commands",
-        )
-    )
-
-
-def _is_empty_runtime_fallback(text: str | None) -> bool:
-    if not text:
-        return False
-    lowered = text.strip().lower()
-    return lowered in {
-        "요청을 처리했지만 텍스트 응답이 없습니다.",
-        "no response.",
-        "no final assistant message was captured.",
-    }
 
 
 def _synthesize_from_tool_results(rows: list[dict]) -> str | None:
