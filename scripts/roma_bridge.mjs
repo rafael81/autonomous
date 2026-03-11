@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 import process from 'node:process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 import { CodexAgent } from '/Users/user/project/Opus_Aggregator/roma-cli/dist/lib/agent.js';
@@ -95,8 +97,101 @@ async function runBashTool(args = {}) {
   });
 }
 
+function resolveToolPath(candidate = '.') {
+  const raw = typeof candidate === 'string' && candidate.trim() ? candidate.trim() : '.';
+  return path.isAbsolute(raw) ? raw : path.resolve(toolCwd, raw);
+}
+
+async function listDirTool(args = {}) {
+  const dir = resolveToolPath(args.path || '.');
+  const maxEntries = Number.isFinite(args.max_entries) ? Math.max(1, Math.min(200, Number(args.max_entries))) : 50;
+  const entries = fs.readdirSync(dir, { withFileTypes: true }).slice(0, maxEntries);
+  return entries
+    .map((entry) => `${entry.isDirectory() ? 'dir' : 'file'}\t${entry.name}`)
+    .join('\n');
+}
+
+async function searchFilesTool(args = {}) {
+  const query = typeof args.query === 'string' ? args.query.trim() : '';
+  if (!query) {
+    return 'Error: query is required.';
+  }
+  const dir = resolveToolPath(args.path || '.');
+  const maxResults = Number.isFinite(args.max_results) ? Math.max(1, Math.min(200, Number(args.max_results))) : 50;
+  const results = [];
+  const visit = (current) => {
+    if (results.length >= maxResults) return;
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.venv') continue;
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+        if (results.length >= maxResults) return;
+        continue;
+      }
+      if (entry.name.toLowerCase().includes(query.toLowerCase())) {
+        results.push(path.relative(toolCwd, fullPath));
+        if (results.length >= maxResults) return;
+      }
+    }
+  };
+  visit(dir);
+  return results.length > 0 ? results.join('\n') : '(no matches)';
+}
+
+async function readFileTool(args = {}) {
+  const filePath = resolveToolPath(args.path);
+  const startLine = Number.isFinite(args.start_line) ? Math.max(1, Number(args.start_line)) : 1;
+  const endLine = Number.isFinite(args.end_line) ? Math.max(startLine, Number(args.end_line)) : startLine + 199;
+  const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+  return lines
+    .slice(startLine - 1, endLine)
+    .map((line, index) => `${startLine + index}: ${line}`)
+    .join('\n');
+}
+
 const toolSpecs = enableTools
   ? [
+      {
+        type: 'function',
+        name: 'list_dir',
+        description: 'List files and directories in a workspace path.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Directory path relative to the workspace.' },
+            max_entries: { type: 'number', description: 'Maximum entries to return.' },
+          },
+        },
+      },
+      {
+        type: 'function',
+        name: 'search_files',
+        description: 'Search for files whose names match a query string.',
+        parameters: {
+          type: 'object',
+          required: ['query'],
+          properties: {
+            query: { type: 'string', description: 'Case-insensitive file name fragment.' },
+            path: { type: 'string', description: 'Search root relative to the workspace.' },
+            max_results: { type: 'number', description: 'Maximum number of matches to return.' },
+          },
+        },
+      },
+      {
+        type: 'function',
+        name: 'read_file',
+        description: 'Read a file or a bounded line range from the workspace.',
+        parameters: {
+          type: 'object',
+          required: ['path'],
+          properties: {
+            path: { type: 'string', description: 'File path relative to the workspace.' },
+            start_line: { type: 'number', description: '1-based start line.' },
+            end_line: { type: 'number', description: '1-based end line.' },
+          },
+        },
+      },
       {
         type: 'function',
         name: 'bash',
@@ -116,7 +211,14 @@ const toolSpecs = enableTools
     ]
   : [];
 
-const localTools = enableTools ? { bash: runBashTool } : {};
+const localTools = enableTools
+  ? {
+      list_dir: listDirTool,
+      search_files: searchFilesTool,
+      read_file: readFileTool,
+      bash: runBashTool,
+    }
+  : {};
 
 const agent = new CodexAgent({
   token,

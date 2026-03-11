@@ -29,3 +29,19 @@ def test_normalize_roma_events_maps_bridge_events():
     ]
     assert rows[4]["payload"]["tool_name"] == "bash"
     assert rows[6]["payload"]["text"] == "hello"
+
+
+def test_normalize_roma_events_preserves_builtin_tool_names():
+    rows = normalize_roma_events(
+        prompt="inspect repo",
+        raw_events=[
+            {"type": "tool_call", "name": "list_dir", "callId": "call-1", "args": {"path": "."}},
+            {"type": "tool_result", "name": "list_dir", "callId": "call-1", "output": "file\tREADME.md"},
+            {"type": "tool_call", "name": "read_file", "callId": "call-2", "args": {"path": "README.md"}},
+            {"type": "tool_result", "name": "read_file", "callId": "call-2", "output": "1: # autonomos"},
+            {"type": "session_end", "ok": True},
+        ],
+    )
+
+    tool_names = [row["payload"].get("tool_name") for row in rows if "tool_call" in row["event_type"]]
+    assert tool_names == ["list_dir", "list_dir", "read_file", "read_file"]
