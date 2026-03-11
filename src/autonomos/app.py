@@ -8,6 +8,8 @@ from pathlib import Path
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory, load_session_memory
 from .postprocess import codexify_message
+from .roma_runtime import run_roma_chat
+from .strategy import choose_strategy
 from .workflow import ObservationRunResult, observe_prompt
 
 
@@ -44,6 +46,40 @@ def run_chat(
     approval_response_path: Path | None = None,
 ) -> ChatRunSummary:
     memory_turns = load_session_memory(memory_dir, session_id)
+    memory_path = None
+    if profile == "roma_ws":
+        strategy = choose_strategy(prompt)
+        result = run_roma_chat(
+            prompt=prompt,
+            history=memory_turns,
+            captures_dir=captures_dir,
+            cwd=cwd,
+        )
+        final_message = codexify_message(result.final_message)
+        if final_message:
+            memory_path = append_session_memory(
+                memory_dir,
+                session_id,
+                [MemoryTurn(role="user", text=prompt), MemoryTurn(role="assistant", text=final_message)],
+            )
+        return ChatRunSummary(
+            final_message=final_message,
+            strategy_id=strategy.strategy_id,
+            baseline_example_id=strategy.baseline_example_id,
+            attempted_strategies=[strategy.strategy_id],
+            orchestration_summary="approval=no, request_user_input=no, retry=no",
+            session_dir=result.session_dir,
+            normalized_path=result.normalized_path,
+            promoted_example_dir=None,
+            baseline_matches=0,
+            baseline_total=0,
+            comparison_summary_path=None,
+            request_user_input_path=None,
+            adaptive_notes="Roma runtime bridge executed.",
+            memory_path=memory_path,
+            approval_request_path=None,
+        )
+
     outcome: ObservationRunResult = observe_prompt(
         prompt=prompt,
         profile=profile,
@@ -57,7 +93,6 @@ def run_chat(
     )
     final_message = codexify_message(extract_final_message(outcome.capture.normalized_path))
     baseline_matches = len([item for item in outcome.comparison_results if item.matches])
-    memory_path = None
     if final_message:
         memory_path = append_session_memory(
             memory_dir,
