@@ -11,6 +11,7 @@ class ComparisonResult:
     matches: bool
     summary: str
     details: list[str]
+    score: int
 
 
 def _tool_signature(events: list[dict]) -> list[str]:
@@ -47,4 +48,4 @@ def compare_normalized_sequences(expected: list[dict], actual: list[dict]) -> Co
 
     matches = not details
     summary = "matched structurally" if matches else "structural differences found"
-    return ComparisonResult(matches=matches, summary=summary, details=details)
+    return ComparisonResult(matches=matches, summary=summary, details=details, score=len(details))

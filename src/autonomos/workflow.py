@@ -10,7 +10,7 @@ from pathlib import Path
 from .baseline import BaselineComparison, compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command
 from .live_capture import LiveCaptureResult, SavedCapturePaths, run_capture, save_capture_session
-from .strategy import StrategyDecision, build_steered_prompt, choose_strategy
+from .strategy import StrategyDecision, build_steered_prompt, candidate_strategies
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,14 @@ class ObservationRunResult:
     promoted_example_dir: Path | None
     comparison_results: list[BaselineComparison]
     summary_path: Path | None
+    strategy: StrategyDecision
+    attempted_strategies: list[str]
+
+
+@dataclass(frozen=True)
+class AttemptResult:
+    capture: SavedCapturePaths
+    comparison_results: list[BaselineComparison]
     strategy: StrategyDecision
 
 
@@ -33,11 +41,31 @@ def observe_prompt(
     example_id: str | None = None,
     runner=run_capture,
 ) -> ObservationRunResult:
-    strategy = choose_strategy(prompt)
-    steered_prompt = build_steered_prompt(prompt, strategy)
-    command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd, strategy=strategy)
-    result: LiveCaptureResult = runner(command, cwd=cwd)
-    saved = save_capture_session(result=result, prompt=prompt, output_root=captures_dir)
+    attempts: list[AttemptResult] = []
+    strategies = candidate_strategies(prompt)
+    for attempt_index, strategy in enumerate(strategies, start=1):
+        steered_prompt = build_steered_prompt(prompt, strategy)
+        command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd, strategy=strategy)
+        result: LiveCaptureResult = runner(command, cwd=cwd)
+        saved = save_capture_session(
+            result=result,
+            prompt=prompt,
+            output_root=captures_dir / f"attempt-{attempt_index}-{strategy.strategy_id}",
+        )
+        comparison_results: list[BaselineComparison] = []
+        if baselines_dir and saved.normalized_path:
+            comparison_results = compare_capture_against_baselines(
+                normalized_path=saved.normalized_path,
+                baselines_root=baselines_dir,
+            )
+        attempts.append(AttemptResult(capture=saved, comparison_results=comparison_results, strategy=strategy))
+        if any(item.matches for item in comparison_results):
+            break
+
+    best_attempt = select_best_attempt(attempts)
+    strategy = best_attempt.strategy
+    saved = best_attempt.capture
+    comparison_results = best_attempt.comparison_results
 
     promoted_example_dir: Path | None = None
     if promote_dir and saved.normalized_path:
@@ -48,13 +76,8 @@ def observe_prompt(
             prompt=prompt,
         )
 
-    comparison_results: list[BaselineComparison] = []
     summary_path: Path | None = None
     if baselines_dir and saved.normalized_path:
-        comparison_results = compare_capture_against_baselines(
-            normalized_path=saved.normalized_path,
-            baselines_root=baselines_dir,
-        )
         summary_path = saved.session_dir / "comparison-summary.md"
         summary_path.write_text(
             build_comparison_summary(
@@ -62,6 +85,7 @@ def observe_prompt(
                 strategy=strategy,
                 comparison_results=comparison_results,
                 promoted_example_dir=promoted_example_dir,
+                attempted_strategies=[attempt.strategy.strategy_id for attempt in attempts],
             )
             + "\n",
             encoding="utf-8",
@@ -73,7 +97,22 @@ def observe_prompt(
         comparison_results=comparison_results,
         summary_path=summary_path,
         strategy=strategy,
+        attempted_strategies=[attempt.strategy.strategy_id for attempt in attempts],
     )
+
+
+def select_best_attempt(attempts: list[AttemptResult]) -> AttemptResult:
+    if not attempts:
+        raise ValueError("at least one attempt is required")
+
+    def score_attempt(attempt: AttemptResult) -> tuple[int, int, int]:
+        if not attempt.comparison_results:
+            return (1, 10_000, 10_000)
+        best = min(item.score for item in attempt.comparison_results)
+        match_bonus = 0 if any(item.matches for item in attempt.comparison_results) else 1
+        return (match_bonus, best, len(attempt.comparison_results))
+
+    return min(attempts, key=score_attempt)
 
 
 def build_comparison_summary(
@@ -82,6 +121,7 @@ def build_comparison_summary(
     strategy: StrategyDecision,
     comparison_results: list[BaselineComparison],
     promoted_example_dir: Path | None,
+    attempted_strategies: list[str],
 ) -> str:
     sorted_results = sorted(
         comparison_results,
@@ -99,6 +139,9 @@ def build_comparison_summary(
         "",
         "## Strategy",
         f"{strategy.strategy_id} -> {strategy.baseline_example_id}",
+        "",
+        "## Attempted Strategies",
+        ", ".join(attempted_strategies) if attempted_strategies else "none",
         "",
         "## Promoted Example",
         str(promoted_example_dir) if promoted_example_dir else "none",

@@ -1,4 +1,4 @@
-from autonomos.strategy import build_steered_prompt, choose_strategy
+from autonomos.strategy import build_steered_prompt, candidate_strategies, choose_strategy
 
 
 def test_choose_strategy_selects_planning():
@@ -23,3 +23,10 @@ def test_build_steered_prompt_embeds_guidance():
     assert "Preferred interaction archetype" in text
     assert "User request:" in text
     assert "Say hello briefly." in text
+
+
+def test_candidate_strategies_returns_primary_then_fallbacks():
+    decisions = candidate_strategies("Check the repository and verify the tests.")
+
+    assert decisions[0].strategy_id == "tool_oriented"
+    assert len(decisions) >= 2

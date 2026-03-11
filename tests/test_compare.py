@@ -21,6 +21,7 @@ def test_compare_accepts_same_structure():
     result = compare_normalized_sequences(expected, actual)
 
     assert result.matches is True
+    assert result.score == 0
 
 
 def test_compare_rejects_different_tool_sequence():
@@ -30,4 +31,5 @@ def test_compare_rejects_different_tool_sequence():
     result = compare_normalized_sequences(expected, actual)
 
     assert result.matches is False
+    assert result.score > 0
     assert any("tool orchestration differs" in detail or "event type sequence differs" in detail for detail in result.details)

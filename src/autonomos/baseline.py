@@ -18,6 +18,7 @@ class BaselineComparison:
     matches: bool
     summary: str
     details: list[str]
+    score: int
 
 
 def promote_capture_to_example(
@@ -89,6 +90,7 @@ def compare_capture_against_baselines(
                 matches=result.matches,
                 summary=result.summary,
                 details=result.details,
+                score=result.score,
             )
         )
     return results

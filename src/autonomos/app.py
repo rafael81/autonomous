@@ -14,6 +14,7 @@ class ChatRunSummary:
     final_message: str | None
     strategy_id: str
     baseline_example_id: str
+    attempted_strategies: list[str]
     session_dir: Path
     normalized_path: Path | None
     promoted_example_dir: Path | None
@@ -45,6 +46,7 @@ def run_chat(
         final_message=final_message,
         strategy_id=outcome.strategy.strategy_id,
         baseline_example_id=outcome.strategy.baseline_example_id,
+        attempted_strategies=outcome.attempted_strategies,
         session_dir=outcome.capture.session_dir,
         normalized_path=outcome.capture.normalized_path,
         promoted_example_dir=outcome.promoted_example_dir,

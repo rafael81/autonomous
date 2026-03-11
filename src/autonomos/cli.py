@@ -192,6 +192,7 @@ def main() -> int:
         else:
             print("No final assistant message was captured.")
         print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+        print(f"[attempts] {', '.join(summary.attempted_strategies)}")
         print(f"[session] {summary.session_dir}")
         if summary.normalized_path:
             print(f"[normalized] {summary.normalized_path}")

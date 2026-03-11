@@ -99,6 +99,29 @@ def choose_strategy(prompt: str) -> StrategyDecision:
     return _by_id("simple_answer")
 
 
+def candidate_strategies(prompt: str, limit: int = 3) -> list[StrategyDecision]:
+    primary = choose_strategy(prompt)
+    ordered = [primary]
+
+    if primary.strategy_id == "tool_oriented":
+        ordered.extend([_by_id("planning"), _by_id("simple_answer")])
+    elif primary.strategy_id == "planning":
+        ordered.extend([_by_id("tool_oriented"), _by_id("simple_answer")])
+    elif primary.strategy_id == "long_form":
+        ordered.extend([_by_id("simple_answer")])
+    elif primary.strategy_id == "simple_answer":
+        ordered.extend([_by_id("tool_oriented")])
+
+    deduped: list[StrategyDecision] = []
+    seen: set[str] = set()
+    for item in ordered:
+        if item.strategy_id in seen:
+            continue
+        seen.add(item.strategy_id)
+        deduped.append(item)
+    return deduped[:limit]
+
+
 def build_steered_prompt(user_prompt: str, decision: StrategyDecision) -> str:
     return (
         "You are Autonomos, a Codex-aligned CLI assistant.\n"
