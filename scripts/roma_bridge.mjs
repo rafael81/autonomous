@@ -32,6 +32,7 @@ const maxRepeatedToolCalls = Number.isFinite(policy.maxRepeatedToolCalls)
 const stopAfterEvidence = Number.isFinite(policy.stopAfterEvidence) ? Math.max(1, Number(policy.stopAfterEvidence)) : 2;
 const promptMode = typeof policy.promptMode === 'string' ? policy.promptMode : 'general';
 const inspectionMode = promptMode === 'repository_inspection' || promptMode === 'inspection_and_verification';
+const projectAnalysisMode = promptMode === 'project_analysis';
 const toolUsage = new Map();
 let evidenceCount = 0;
 
@@ -70,7 +71,7 @@ function shouldDeclineTool(toolName) {
   if (toolBudgetExceeded(toolName)) {
     return `Error: tool budget exceeded for ${toolName}.`;
   }
-  if (inspectionMode && evidenceCount >= stopAfterEvidence && toolName !== 'read_file') {
+  if ((inspectionMode || projectAnalysisMode) && evidenceCount >= stopAfterEvidence && toolName !== 'read_file') {
     return `Error: enough evidence gathered; skip ${toolName}.`;
   }
   if (inspectionMode && toolName === 'bash') {
@@ -190,7 +191,7 @@ async function listDirTool(args = {}) {
         !entry.isDirectory()
     )
     .slice(0, maxEntries);
-  evidenceCount += entries.length > 0 ? 1 : 0;
+  evidenceCount += entries.filter((entry) => !entry.name.startsWith('.')).length > 0 ? 1 : 0;
   noteToolUsage('list_dir', {
     path: relativeFromWorkspace(dir),
     entry_count: entries.length,

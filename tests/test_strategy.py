@@ -36,3 +36,9 @@ def test_candidate_strategies_returns_primary_then_fallbacks():
 
     assert decisions[0].strategy_id == "tool_oriented"
     assert len(decisions) >= 2
+
+
+def test_candidate_strategies_shortens_for_project_analysis():
+    decisions = candidate_strategies("현재 내 프로젝트 분석")
+
+    assert [decision.strategy_id for decision in decisions] == ["tool_oriented"]

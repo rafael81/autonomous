@@ -19,6 +19,7 @@ from .orchestration import (
 )
 from .policy import infer_prompt_policy, is_empty_runtime_fallback, rank_roma_attempt, render_policy_guidance
 from .postprocess import codexify_message
+from .project_analysis import build_project_analysis_context
 from .reports import build_report
 from .roma_runtime import RomaAttemptResult, run_roma_chat
 from .strategy import build_steered_prompt, candidate_strategies, choose_strategy
@@ -65,13 +66,17 @@ def run_chat(
         user_input_prefix = render_request_user_input_response(request_user_input_response_path)
         approval_prefix = render_approval_response(approval_response_path)
         memory_prefix = render_memory_context(memory_turns)
+        analysis_prefix = ""
         for attempt_index, strategy in enumerate(candidate_strategies(prompt), start=1):
             policy = infer_prompt_policy(prompt, strategy)
+            if policy.prompt_mode == "project_analysis" and not analysis_prefix:
+                analysis_prefix = build_project_analysis_context(cwd)
             policy_guidance = render_policy_guidance(policy)
             steered_prompt = (
                 memory_prefix
                 + approval_prefix
                 + user_input_prefix
+                + analysis_prefix
                 + policy_guidance
                 + "\n"
                 + build_steered_prompt(prompt, strategy)
@@ -82,7 +87,7 @@ def run_chat(
                 history=memory_turns,
                 captures_dir=captures_dir / f"attempt-{attempt_index}-{strategy.strategy_id}",
                 cwd=cwd,
-                instructions=memory_prefix + policy_guidance + "\n" + build_steered_prompt(prompt, strategy),
+                instructions=memory_prefix + analysis_prefix + policy_guidance + "\n" + build_steered_prompt(prompt, strategy),
                 enable_tools=strategy.strategy_id == "tool_oriented",
                 policy=policy,
             )

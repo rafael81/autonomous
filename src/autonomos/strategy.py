@@ -128,6 +128,20 @@ def choose_strategy(prompt: str) -> StrategyDecision:
 
 
 def candidate_strategies(prompt: str, limit: int = 3) -> list[StrategyDecision]:
+    text = prompt.lower()
+    if any(
+        token in text
+        for token in (
+            "project analysis",
+            "analyze this project",
+            "analyze my project",
+            "현재 내 프로젝트 분석",
+            "현재 프로젝트 분석",
+            "프로젝트 분석",
+        )
+    ):
+        return [_by_id("tool_oriented")]
+
     primary = choose_strategy(prompt)
     ordered = [primary]
 

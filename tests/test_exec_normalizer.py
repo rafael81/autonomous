@@ -76,3 +76,44 @@ def test_normalize_exec_cli_round_trip(tmp_path: Path):
     loaded = read_jsonl(out_path)
     assert loaded[0]["event_type"] == "session_start"
     assert loaded[-1]["event_type"] == "session_end"
+
+
+def test_normalize_exec_events_handles_direct_item_shape():
+    rows = [
+        {"timestamp": "2026-03-11T00:00:00Z", "type": "thread.started", "thread_id": "thread-1"},
+        {"timestamp": "2026-03-11T00:00:01Z", "type": "turn.started", "turn_id": "turn-1"},
+        {
+            "timestamp": "2026-03-11T00:00:02Z",
+            "type": "item.completed",
+            "item": {
+                "id": "msg-1",
+                "type": "agent_message",
+                "text": "hello",
+            },
+        },
+        {
+            "timestamp": "2026-03-11T00:00:03Z",
+            "type": "item.completed",
+            "item": {
+                "id": "cmd-1",
+                "type": "command_execution",
+                "command": "/bin/zsh -lc 'ls -la'",
+                "aggregated_output": "ok",
+                "status": "completed",
+                "exit_code": 0,
+            },
+        },
+    ]
+
+    normalized = normalize_exec_events(rows)
+
+    assert [event["event_type"] for event in normalized] == [
+        "session_start",
+        "task_started",
+        "assistant_message",
+        "tool_call_result",
+        "session_end",
+    ]
+    assert normalized[2]["payload"]["text"] == "hello"
+    assert normalized[3]["payload"]["tool_name"] == "shell"
+    assert normalized[3]["payload"]["command"] == "/bin/zsh -lc 'ls -la'"

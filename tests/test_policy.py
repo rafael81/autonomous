@@ -9,10 +9,18 @@ from autonomos.strategy import choose_strategy
 def test_infer_prompt_policy_for_repository_inspection():
     policy = infer_prompt_policy("현재 프로젝트 구조 분석")
 
-    assert policy.prompt_mode == "repository_inspection"
-    assert policy.tool_budget == 5
+    assert policy.prompt_mode == "project_analysis"
+    assert policy.tool_budget == 10
     assert "src" in policy.preferred_roots
     assert "captures" in policy.excluded_roots
+
+
+def test_infer_prompt_policy_for_project_analysis():
+    policy = infer_prompt_policy("현재 내 프로젝트 분석")
+
+    assert policy.prompt_mode == "project_analysis"
+    assert policy.tool_budget == 10
+    assert policy.preferred_tools[0] == "bash"
 
 
 def test_render_policy_guidance_includes_budget_and_roots():

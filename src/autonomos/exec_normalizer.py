@@ -87,11 +87,11 @@ def normalize_exec_events(rows: list[dict]) -> list[dict]:
 
         item = row.get("item", {})
         details = item.get("details", {})
-        item_type = details.get("type")
+        item_type = details.get("type") or item.get("type")
         item_id = item.get("id")
 
         if item_type == "agent_message":
-            text = details.get("text", "")
+            text = details.get("text", item.get("text", ""))
             normalized.append(
                 build_event(
                     ts=ts,
@@ -105,6 +105,10 @@ def normalize_exec_events(rows: list[dict]) -> list[dict]:
                 )
             )
         elif item_type == "command_execution":
+            command = details.get("command", item.get("command"))
+            output = details.get("aggregated_output", item.get("aggregated_output"))
+            status = details.get("status", item.get("status"))
+            exit_code = details.get("exit_code", item.get("exit_code"))
             normalized.append(
                 build_event(
                     ts=ts,
@@ -115,10 +119,10 @@ def normalize_exec_events(rows: list[dict]) -> list[dict]:
                     call_id=item_id,
                     payload={
                         "tool_name": "shell",
-                        "command": details.get("command"),
-                        "output": details.get("aggregated_output"),
-                        "status": details.get("status"),
-                        "exit_code": details.get("exit_code"),
+                        "command": command,
+                        "output": output,
+                        "status": status,
+                        "exit_code": exit_code,
                     },
                     raw=row,
                 )

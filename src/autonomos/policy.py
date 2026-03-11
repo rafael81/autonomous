@@ -34,6 +34,18 @@ DEFAULT_POLICY = PromptPolicy(
 
 def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -> PromptPolicy:
     text = prompt.lower()
+    project_analysis_prompt = any(
+        token in text
+        for token in (
+            "project analysis",
+            "analyze this project",
+            "analyze my project",
+            "현재 내 프로젝트 분석",
+            "현재 프로젝트 분석",
+            "프로젝트 분석",
+            "프로젝트 구조 분석",
+        )
+    )
     inspection_prompt = any(
         token in text
         for token in (
@@ -54,6 +66,17 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
     ) or (strategy is not None and strategy.strategy_id == "tool_oriented")
     verification_prompt = any(token in text for token in ("test", "verify", "pytest", "check"))
 
+    if project_analysis_prompt:
+        return PromptPolicy(
+            prompt_mode="project_analysis",
+            tool_budget=10,
+            max_repeated_tool_calls=3,
+            preferred_roots=("README.md", "pyproject.toml", "src", "tests", "scripts"),
+            excluded_roots=DEFAULT_POLICY.excluded_roots,
+            stop_after_evidence=6,
+            preferred_tools=("bash", "read_file", "grep_text", "glob_paths", "list_dir"),
+            fallback_tool="bash",
+        )
     if inspection_prompt and verification_prompt:
         return PromptPolicy(
             prompt_mode="inspection_and_verification",
@@ -91,7 +114,7 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
 
 
 def render_policy_guidance(policy: PromptPolicy) -> str:
-    return (
+    guidance = (
         "General orchestration policy:\n"
         f"- prompt_mode: {policy.prompt_mode}\n"
         f"- tool_budget: {policy.tool_budget}\n"
@@ -105,6 +128,14 @@ def render_policy_guidance(policy: PromptPolicy) -> str:
         "- Stop once the available evidence is enough to answer reliably.\n"
         "- Avoid scanning generated or cached directories unless the user explicitly asks for them.\n"
     )
+    if policy.prompt_mode == "project_analysis":
+        guidance += (
+            "- Use a staged analysis flow: quick repository scan, read key config/docs, inspect main runtime modules, then validate with tests if possible.\n"
+            "- Prefer a short progress note before deep inspection and another note before validation.\n"
+            "- Final output should summarize architecture, runtime flow, strengths, and concrete risks.\n"
+            "- If `python` is unavailable, retry validation with `python3 -m pytest -q`.\n"
+        )
+    return guidance
 
 
 def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, str]:
@@ -113,11 +144,21 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
     tool_rows = [row for row in rows if row.get("event_type") in {"tool_call_request", "tool_call_result"}]
     tool_names = [row.get("payload", {}).get("tool_name", "") for row in tool_rows]
     final_message = extract_attempt_message(rows)
+    substantive_evidence_penalty = 0
+    planning_penalty = 0
 
     preferred_tool_penalty = 0
     if policy.prompt_mode.startswith("repository_") or policy.prompt_mode == "inspection_and_verification":
         if not any(name in policy.preferred_tools for name in tool_names):
             preferred_tool_penalty = 1
+    if policy.prompt_mode == "project_analysis":
+        if not tool_rows:
+            substantive_evidence_penalty = 1
+        lowered = final_message.lower()
+        if any(token in lowered for token in ("보류", "실행 계획", "붙여주시면", "실행해야 할", "분석 계획")):
+            planning_penalty = 1
+        if "pytest" in lowered or "passed" in lowered or "테스트" in lowered:
+            substantive_evidence_penalty = 0
 
     access_fallback_penalty = 1 if looks_like_access_fallback(final_message) else 0
     empty_fallback_penalty = 1 if is_empty_runtime_fallback(final_message) else 0
@@ -129,6 +170,8 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
         comparison_matches == 0,
         access_fallback_penalty,
         empty_fallback_penalty,
+        planning_penalty,
+        substantive_evidence_penalty,
         preferred_tool_penalty,
         over_budget_penalty,
         comparison_score,
