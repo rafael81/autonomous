@@ -8,7 +8,7 @@ from pathlib import Path
 from .adaptive import AdaptiveSummary, summarize_attempt_progress
 from .baseline import compare_capture_against_baselines, promote_capture_to_example
 from .io import read_jsonl
-from .memory import MemoryTurn, append_session_memory, load_session_memory
+from .memory import MemoryTurn, append_session_memory, load_session_memory, render_memory_context
 from .orchestration import (
     build_retry_appendix,
     decide_orchestration,
@@ -63,14 +63,15 @@ def run_chat(
         retry_appendix = ""
         user_input_prefix = render_request_user_input_response(request_user_input_response_path)
         approval_prefix = render_approval_response(approval_response_path)
+        memory_prefix = render_memory_context(memory_turns)
         for attempt_index, strategy in enumerate(candidate_strategies(prompt), start=1):
-            steered_prompt = approval_prefix + user_input_prefix + build_steered_prompt(prompt, strategy) + retry_appendix
+            steered_prompt = memory_prefix + approval_prefix + user_input_prefix + build_steered_prompt(prompt, strategy) + retry_appendix
             result = run_roma_chat(
                 prompt=steered_prompt,
                 history=memory_turns,
                 captures_dir=captures_dir / f"attempt-{attempt_index}-{strategy.strategy_id}",
                 cwd=cwd,
-                instructions=build_steered_prompt(prompt, strategy),
+                instructions=memory_prefix + build_steered_prompt(prompt, strategy),
                 enable_tools=strategy.strategy_id == "tool_oriented",
             )
             comparison_results = (
