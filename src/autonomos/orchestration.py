@@ -83,11 +83,12 @@ def write_request_user_input_response(
     notes: str = "",
 ) -> Path:
     request = json.loads(request_path.read_text(encoding="utf-8"))
+    question = request["questions"][0]
     response = {
         "request_path": str(request_path),
         "answers": [
             {
-                "question_id": request["questions"][0]["id"],
+                "question_id": question.get("id", "question-1"),
                 "selected_option": selected_option,
                 "notes": notes,
             }

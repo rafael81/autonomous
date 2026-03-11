@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from .app import run_chat
@@ -330,8 +331,6 @@ def main() -> int:
             print(f"{session_id}\t{count}")
         return 0
     if args.command == "repl":
-        import sys
-
         print("Autonomos REPL. Type /exit to quit.")
         while True:
             try:
@@ -358,7 +357,57 @@ def main() -> int:
                 print("No final assistant message was captured.")
             print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
             print(f"[policy] {summary.orchestration_summary}")
+            if summary.approval_request_path:
+                approval = _handle_inline_approval(summary.approval_request_path)
+                if approval:
+                    print(f"[approval] {approval}")
+            if summary.request_user_input_path:
+                response = _handle_inline_request_user_input(summary.request_user_input_path)
+                if response:
+                    print(f"[request-user-input] {response}")
         return 0
 
     parser.print_help()
     return 0
+
+
+def _handle_inline_request_user_input(request_path: Path) -> Path | None:
+    payload = json.loads(request_path.read_text(encoding="utf-8"))
+    questions = payload.get("questions", [])
+    if not questions:
+        return None
+    question = questions[0]
+    print(question.get("question", "Choose an option:"))
+    options = question.get("options", [])
+    for index, option in enumerate(options, start=1):
+        print(f"  {index}. {option.get('label')} - {option.get('description')}")
+    choice = input("selection [1]: ").strip() or "1"
+    try:
+        selected = options[max(0, int(choice) - 1)]["label"]
+    except (ValueError, IndexError, KeyError):
+        selected = options[0]["label"] if options else "default"
+    notes = input("notes (optional): ").strip()
+    return write_request_user_input_response(
+        request_path=request_path,
+        selected_option=selected,
+        notes=notes,
+    )
+
+
+def _handle_inline_approval(request_path: Path) -> Path | None:
+    payload = json.loads(request_path.read_text(encoding="utf-8"))
+    print(payload.get("question", "Approve?"))
+    options = payload.get("options", [])
+    for index, option in enumerate(options, start=1):
+        print(f"  {index}. {option.get('label')} - {option.get('description')}")
+    choice = input("selection [1]: ").strip() or "1"
+    try:
+        selected = options[max(0, int(choice) - 1)]["label"]
+    except (ValueError, IndexError, KeyError):
+        selected = options[0]["label"] if options else "Approve"
+    notes = input("notes (optional): ").strip()
+    return write_approval_response(
+        request_path=request_path,
+        decision=selected,
+        notes=notes,
+    )
