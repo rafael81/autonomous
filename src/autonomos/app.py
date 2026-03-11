@@ -27,6 +27,7 @@ class ChatRunSummary:
     request_user_input_path: Path | None
     adaptive_notes: str
     memory_path: Path | None
+    approval_request_path: Path | None
 
 
 def run_chat(
@@ -40,6 +41,7 @@ def run_chat(
     memory_dir: Path,
     session_id: str,
     request_user_input_response_path: Path | None = None,
+    approval_response_path: Path | None = None,
 ) -> ChatRunSummary:
     memory_turns = load_session_memory(memory_dir, session_id)
     outcome: ObservationRunResult = observe_prompt(
@@ -51,6 +53,7 @@ def run_chat(
         baselines_dir=baselines_dir,
         memory_turns=memory_turns,
         request_user_input_response_path=request_user_input_response_path,
+        approval_response_path=approval_response_path,
     )
     final_message = codexify_message(extract_final_message(outcome.capture.normalized_path))
     baseline_matches = len([item for item in outcome.comparison_results if item.matches])
@@ -76,6 +79,7 @@ def run_chat(
         request_user_input_path=outcome.request_user_input_path,
         adaptive_notes=outcome.adaptive_summary.notes,
         memory_path=memory_path,
+        approval_request_path=outcome.approval_request_path,
     )
 
 

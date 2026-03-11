@@ -16,7 +16,9 @@ from .orchestration import (
     OrchestrationDecision,
     build_retry_appendix,
     decide_orchestration,
+    render_approval_response,
     render_request_user_input_response,
+    write_approval_artifact,
     write_request_user_input_artifact,
 )
 from .strategy import StrategyDecision, build_steered_prompt, candidate_strategies
@@ -33,6 +35,7 @@ class ObservationRunResult:
     orchestration: OrchestrationDecision
     request_user_input_path: Path | None
     adaptive_summary: AdaptiveSummary
+    approval_request_path: Path | None
 
 
 @dataclass(frozen=True)
@@ -54,6 +57,7 @@ def observe_prompt(
     example_id: str | None = None,
     memory_turns: list[MemoryTurn] | None = None,
     request_user_input_response_path: Path | None = None,
+    approval_response_path: Path | None = None,
     runner=run_capture,
 ) -> ObservationRunResult:
     attempts: list[AttemptResult] = []
@@ -61,8 +65,9 @@ def observe_prompt(
     retry_appendix = ""
     memory_prefix = render_memory_context(memory_turns or [])
     user_input_prefix = render_request_user_input_response(request_user_input_response_path)
+    approval_prefix = render_approval_response(approval_response_path)
     for attempt_index, strategy in enumerate(strategies, start=1):
-        steered_prompt = memory_prefix + user_input_prefix + build_steered_prompt(prompt, strategy) + retry_appendix
+        steered_prompt = memory_prefix + approval_prefix + user_input_prefix + build_steered_prompt(prompt, strategy) + retry_appendix
         command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd, strategy=strategy)
         result: LiveCaptureResult = runner(command, cwd=cwd)
         saved = save_capture_session(
@@ -100,6 +105,9 @@ def observe_prompt(
     comparison_results = best_attempt.comparison_results
     orchestration = best_attempt.orchestration
     request_user_input_path: Path | None = None
+    approval_request_path: Path | None = None
+    if orchestration.requires_approval:
+        approval_request_path = write_approval_artifact(session_dir=saved.session_dir, prompt=prompt)
     if orchestration.should_request_user_input:
         request_user_input_path = write_request_user_input_artifact(session_dir=saved.session_dir, prompt=prompt)
     adaptive_summary = summarize_attempt_progress([attempt.comparison_results for attempt in attempts])
@@ -140,6 +148,7 @@ def observe_prompt(
         orchestration=orchestration,
         request_user_input_path=request_user_input_path,
         adaptive_summary=adaptive_summary,
+        approval_request_path=approval_request_path,
     )
 
 

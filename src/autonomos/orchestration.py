@@ -40,6 +40,42 @@ def write_request_user_input_artifact(*, session_dir: Path, prompt: str) -> Path
     return path
 
 
+def write_approval_artifact(*, session_dir: Path, prompt: str) -> Path:
+    payload = {
+        "question": "Approve tool execution for this run?",
+        "options": [
+            {"label": "Approve", "description": "Continue with the current execution policy."},
+            {"label": "Decline", "description": "Do not allow the risky execution path."},
+        ],
+        "prompt": prompt,
+    }
+    path = session_dir / "approval-request.json"
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
+
+
+def write_approval_response(*, request_path: Path, decision: str, notes: str = "") -> Path:
+    payload = {
+        "request_path": str(request_path),
+        "decision": decision,
+        "notes": notes,
+    }
+    path = request_path.with_name("approval-response.json")
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
+
+
+def render_approval_response(response_path: Path | None) -> str:
+    if response_path is None or not response_path.exists():
+        return ""
+    payload = json.loads(response_path.read_text(encoding="utf-8"))
+    return (
+        "Approval decision:\n"
+        f"- decision={payload.get('decision')}\n"
+        f"- notes={payload.get('notes', '')}\n\n"
+    )
+
+
 def write_request_user_input_response(
     *,
     request_path: Path,

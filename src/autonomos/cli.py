@@ -14,7 +14,7 @@ from .examples import build_examples_dataset
 from .exec_normalizer import normalize_exec_events
 from .io import read_jsonl
 from .live_capture import run_capture, save_capture_session
-from .orchestration import write_request_user_input_response
+from .orchestration import write_approval_response, write_request_user_input_response
 from .workflow import observe_prompt
 
 
@@ -87,6 +87,11 @@ def build_parser() -> argparse.ArgumentParser:
     answer_rui.add_argument("selected_option", help="Chosen option label.")
     answer_rui.add_argument("--notes", default="", help="Optional notes.")
 
+    answer_approval = subparsers.add_parser("answer-approval", help="Write a response file for an approval-request artifact.")
+    answer_approval.add_argument("request_file", help="Path to approval-request.json")
+    answer_approval.add_argument("decision", help="Approve or Decline")
+    answer_approval.add_argument("--notes", default="", help="Optional notes.")
+
     resume = subparsers.add_parser("resume", help="Resume a run using a request-user-input response artifact.")
     resume.add_argument("prompt", nargs="?", help="Prompt to send. If omitted, read from stdin.")
     resume.add_argument("--response-file", required=True, help="Path to request-user-input-response.json")
@@ -97,6 +102,10 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
     resume.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     resume.add_argument("--session-id", default="default", help="Logical chat session id.")
+    resume.add_argument("--approval-response-file", help="Path to approval-response.json")
+
+    transcript = subparsers.add_parser("transcript", help="Print a compact transcript from a normalized session trace.")
+    transcript.add_argument("normalized", help="Path to normalized.jsonl")
     return parser
 
 
@@ -198,6 +207,14 @@ def main() -> int:
         )
         print(response_path)
         return 0
+    if args.command == "answer-approval":
+        response_path = write_approval_response(
+            request_path=Path(args.request_file),
+            decision=args.decision,
+            notes=args.notes,
+        )
+        print(response_path)
+        return 0
     if args.command == "chat":
         prompt = args.prompt
         if prompt is None:
@@ -217,6 +234,7 @@ def main() -> int:
             memory_dir=Path(args.memory_dir),
             session_id=args.session_id,
             request_user_input_response_path=Path(args.request_user_input_response) if args.request_user_input_response else None,
+            approval_response_path=Path(args.approval_response_file) if hasattr(args, "approval_response_file") and args.approval_response_file else None,
         )
         if summary.final_message:
             print(summary.final_message)
@@ -234,6 +252,8 @@ def main() -> int:
             print(f"[comparison] {summary.comparison_summary_path}")
         if summary.request_user_input_path:
             print(f"[request-user-input] {summary.request_user_input_path}")
+        if summary.approval_request_path:
+            print(f"[approval-request] {summary.approval_request_path}")
         if summary.memory_path:
             print(f"[memory] {summary.memory_path}")
         print(f"[adaptive] {summary.adaptive_notes}")
@@ -258,6 +278,7 @@ def main() -> int:
             memory_dir=Path(args.memory_dir),
             session_id=args.session_id,
             request_user_input_response_path=Path(args.response_file),
+            approval_response_path=Path(args.approval_response_file) if args.approval_response_file else None,
         )
         if summary.final_message:
             print(summary.final_message)
@@ -269,10 +290,26 @@ def main() -> int:
         print(f"[session] {summary.session_dir}")
         if summary.request_user_input_path:
             print(f"[request-user-input] {summary.request_user_input_path}")
+        if summary.approval_request_path:
+            print(f"[approval-request] {summary.approval_request_path}")
         if summary.memory_path:
             print(f"[memory] {summary.memory_path}")
         print(f"[adaptive] {summary.adaptive_notes}")
         print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+        return 0
+    if args.command == "transcript":
+        rows = read_jsonl(Path(args.normalized))
+        for row in rows:
+            event_type = row.get("event_type")
+            payload = row.get("payload", {})
+            if event_type == "assistant_message":
+                print(f"assistant: {payload.get('text', '')}")
+            elif event_type == "user_input":
+                print(f"user: {payload.get('text', '')}")
+            elif event_type and "tool" in event_type:
+                print(f"{event_type}: {payload}")
+            else:
+                print(event_type)
         return 0
 
     parser.print_help()
