@@ -14,6 +14,7 @@ from .examples import build_examples_dataset
 from .exec_normalizer import normalize_exec_events
 from .io import read_jsonl
 from .live_capture import run_capture, save_capture_session
+from .memory import list_sessions
 from .orchestration import write_approval_response, write_request_user_input_response
 from .workflow import observe_prompt
 
@@ -106,6 +107,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     transcript = subparsers.add_parser("transcript", help="Print a compact transcript from a normalized session trace.")
     transcript.add_argument("normalized", help="Path to normalized.jsonl")
+
+    sessions = subparsers.add_parser("sessions", help="List saved local chat sessions.")
+    sessions.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+
+    repl = subparsers.add_parser("repl", help="Run a simple interactive chat loop.")
+    repl.add_argument("--profile", default="openai_ws", help="Codex profile name.")
+    repl.add_argument("--cwd", default=".", help="Working directory for codex exec.")
+    repl.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    repl.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    repl.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    repl.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    repl.add_argument("--session-id", default="default", help="Logical chat session id.")
     return parser
 
 
@@ -310,6 +323,41 @@ def main() -> int:
                 print(f"{event_type}: {payload}")
             else:
                 print(event_type)
+        return 0
+    if args.command == "sessions":
+        rows = list_sessions(Path(args.memory_dir))
+        for session_id, count in rows:
+            print(f"{session_id}\t{count}")
+        return 0
+    if args.command == "repl":
+        import sys
+
+        print("Autonomos REPL. Type /exit to quit.")
+        while True:
+            try:
+                prompt = input("> ").strip()
+            except EOFError:
+                break
+            if not prompt:
+                continue
+            if prompt in {"/exit", "/quit"}:
+                break
+            summary = run_chat(
+                prompt=prompt,
+                profile=args.profile,
+                cwd=Path(args.cwd),
+                captures_dir=Path(args.captures_dir),
+                promote_dir=Path(args.promote_dir),
+                baselines_dir=Path(args.baselines_dir),
+                memory_dir=Path(args.memory_dir),
+                session_id=args.session_id,
+            )
+            if summary.final_message:
+                print(summary.final_message)
+            else:
+                print("No final assistant message was captured.")
+            print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+            print(f"[policy] {summary.orchestration_summary}")
         return 0
 
     parser.print_help()

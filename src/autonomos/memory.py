@@ -41,3 +41,13 @@ def render_memory_context(turns: list[MemoryTurn], limit: int = 6) -> str:
     for turn in selected:
         lines.append(f"- {turn.role}: {turn.text}")
     return "\n".join(lines) + "\n\n"
+
+
+def list_sessions(memory_root: Path) -> list[tuple[str, int]]:
+    if not memory_root.exists():
+        return []
+    sessions: list[tuple[str, int]] = []
+    for path in sorted(memory_root.glob("*.jsonl")):
+        count = len(read_jsonl(path))
+        sessions.append((path.stem, count))
+    return sessions
