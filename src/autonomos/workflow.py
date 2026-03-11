@@ -10,6 +10,7 @@ from pathlib import Path
 from .baseline import BaselineComparison, compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command
 from .live_capture import LiveCaptureResult, SavedCapturePaths, run_capture, save_capture_session
+from .strategy import StrategyDecision, build_steered_prompt, choose_strategy
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class ObservationRunResult:
     promoted_example_dir: Path | None
     comparison_results: list[BaselineComparison]
     summary_path: Path | None
+    strategy: StrategyDecision
 
 
 def observe_prompt(
@@ -31,7 +33,9 @@ def observe_prompt(
     example_id: str | None = None,
     runner=run_capture,
 ) -> ObservationRunResult:
-    command = build_exec_command(prompt=prompt, profile=profile, cwd=cwd)
+    strategy = choose_strategy(prompt)
+    steered_prompt = build_steered_prompt(prompt, strategy)
+    command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd)
     result: LiveCaptureResult = runner(command, cwd=cwd)
     saved = save_capture_session(result=result, prompt=prompt, output_root=captures_dir)
 
@@ -55,6 +59,7 @@ def observe_prompt(
         summary_path.write_text(
             build_comparison_summary(
                 prompt=prompt,
+                strategy=strategy,
                 comparison_results=comparison_results,
                 promoted_example_dir=promoted_example_dir,
             )
@@ -67,12 +72,14 @@ def observe_prompt(
         promoted_example_dir=promoted_example_dir,
         comparison_results=comparison_results,
         summary_path=summary_path,
+        strategy=strategy,
     )
 
 
 def build_comparison_summary(
     *,
     prompt: str,
+    strategy: StrategyDecision,
     comparison_results: list[BaselineComparison],
     promoted_example_dir: Path | None,
 ) -> str:
@@ -89,6 +96,9 @@ def build_comparison_summary(
         "",
         "## Prompt",
         prompt,
+        "",
+        "## Strategy",
+        f"{strategy.strategy_id} -> {strategy.baseline_example_id}",
         "",
         "## Promoted Example",
         str(promoted_example_dir) if promoted_example_dir else "none",

@@ -12,6 +12,8 @@ from .workflow import ObservationRunResult, observe_prompt
 @dataclass(frozen=True)
 class ChatRunSummary:
     final_message: str | None
+    strategy_id: str
+    baseline_example_id: str
     session_dir: Path
     normalized_path: Path | None
     promoted_example_dir: Path | None
@@ -41,6 +43,8 @@ def run_chat(
     baseline_matches = len([item for item in outcome.comparison_results if item.matches])
     return ChatRunSummary(
         final_message=final_message,
+        strategy_id=outcome.strategy.strategy_id,
+        baseline_example_id=outcome.strategy.baseline_example_id,
         session_dir=outcome.capture.session_dir,
         normalized_path=outcome.capture.normalized_path,
         promoted_example_dir=outcome.promoted_example_dir,

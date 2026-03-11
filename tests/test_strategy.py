@@ -1,0 +1,23 @@
+from autonomos.strategy import build_steered_prompt, choose_strategy
+
+
+def test_choose_strategy_selects_planning():
+    decision = choose_strategy("Make a plan for the migration.")
+
+    assert decision.strategy_id == "planning"
+    assert decision.baseline_example_id == "example-06-plan-only"
+
+
+def test_choose_strategy_selects_tool_oriented():
+    decision = choose_strategy("Check the repository and verify the tests.")
+
+    assert decision.strategy_id == "tool_oriented"
+
+
+def test_build_steered_prompt_embeds_guidance():
+    decision = choose_strategy("Say hello briefly.")
+    text = build_steered_prompt("Say hello briefly.", decision)
+
+    assert "Preferred interaction archetype" in text
+    assert "User request:" in text
+    assert "Say hello briefly." in text

@@ -44,3 +44,4 @@ def test_observe_prompt_runs_end_to_end(tmp_path: Path):
     assert outcome.summary_path is not None
     assert outcome.summary_path.exists()
     assert len(outcome.comparison_results) == 1
+    assert outcome.strategy.strategy_id == "simple_answer"
