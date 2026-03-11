@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,7 +28,8 @@ def append_session_memory(memory_root: Path, session_id: str, turns: list[Memory
     existing = []
     if path.exists():
         existing = read_jsonl(path)
-    rows = existing + [{"role": turn.role, "text": turn.text} for turn in turns]
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    rows = existing + [{"role": turn.role, "text": turn.text, "ts": now} for turn in turns]
     path.parent.mkdir(parents=True, exist_ok=True)
     write_jsonl(path, rows)
     return path
@@ -43,11 +45,13 @@ def render_memory_context(turns: list[MemoryTurn], limit: int = 6) -> str:
     return "\n".join(lines) + "\n\n"
 
 
-def list_sessions(memory_root: Path) -> list[tuple[str, int]]:
+def list_sessions(memory_root: Path) -> list[tuple[str, int, str | None]]:
     if not memory_root.exists():
         return []
-    sessions: list[tuple[str, int]] = []
+    sessions: list[tuple[str, int, str | None]] = []
     for path in sorted(memory_root.glob("*.jsonl")):
-        count = len(read_jsonl(path))
-        sessions.append((path.stem, count))
+        rows = read_jsonl(path)
+        count = len(rows)
+        last_ts = rows[-1].get("ts") if rows else None
+        sessions.append((path.stem, count, last_ts))
     return sessions

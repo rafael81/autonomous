@@ -314,18 +314,25 @@ def main() -> int:
                 event_type = row.get("event_type")
                 payload = row.get("payload", {})
                 if event_type == "assistant_message":
-                    print(f"assistant: {payload.get('text', '')}")
+                    print(f"assistant> {payload.get('text', '')}")
                 elif event_type == "user_input":
-                    print(f"user: {payload.get('text', '')}")
+                    print(f"user> {payload.get('text', '')}")
                 elif event_type and "tool" in event_type:
-                    print(f"{event_type}: {payload}")
+                    tool_name = payload.get("tool_name", "unknown")
+                    if event_type == "tool_call_request":
+                        print(f"tool> request {tool_name} {payload.get('args', {})}")
+                    elif event_type == "tool_call_result":
+                        output = str(payload.get("output", ""))
+                        print(f"tool> result {tool_name} {output[:160]}")
+                    else:
+                        print(f"tool> {event_type} {payload}")
                 else:
-                    print(event_type)
+                    print(f"event> {event_type}")
             return 0
         if args.command == "sessions":
             rows = list_sessions(Path(args.memory_dir))
-            for session_id, count in rows:
-                print(f"{session_id}\t{count}")
+            for session_id, count, last_ts in rows:
+                print(f"{session_id}\t{count}\t{last_ts or '-'}")
             return 0
         if args.command == "repl":
             print("Autonomos REPL. Type /exit to quit.")
