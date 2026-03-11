@@ -77,6 +77,8 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     chat.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
     chat.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    chat.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    chat.add_argument("--session-id", default="default", help="Logical chat session id.")
     return parser
 
 
@@ -186,6 +188,8 @@ def main() -> int:
             captures_dir=Path(args.captures_dir),
             promote_dir=Path(args.promote_dir),
             baselines_dir=Path(args.baselines_dir),
+            memory_dir=Path(args.memory_dir),
+            session_id=args.session_id,
         )
         if summary.final_message:
             print(summary.final_message)
@@ -203,6 +207,8 @@ def main() -> int:
             print(f"[comparison] {summary.comparison_summary_path}")
         if summary.request_user_input_path:
             print(f"[request-user-input] {summary.request_user_input_path}")
+        if summary.memory_path:
+            print(f"[memory] {summary.memory_path}")
         print(f"[adaptive] {summary.adaptive_notes}")
         print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
         return 0

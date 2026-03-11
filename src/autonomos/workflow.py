@@ -11,6 +11,7 @@ from .adaptive import AdaptiveSummary, summarize_attempt_progress
 from .baseline import BaselineComparison, compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command
 from .live_capture import LiveCaptureResult, SavedCapturePaths, run_capture, save_capture_session
+from .memory import MemoryTurn, render_memory_context
 from .orchestration import (
     OrchestrationDecision,
     build_retry_appendix,
@@ -50,13 +51,15 @@ def observe_prompt(
     promote_dir: Path | None = None,
     baselines_dir: Path | None = None,
     example_id: str | None = None,
+    memory_turns: list[MemoryTurn] | None = None,
     runner=run_capture,
 ) -> ObservationRunResult:
     attempts: list[AttemptResult] = []
     strategies = candidate_strategies(prompt)
     retry_appendix = ""
+    memory_prefix = render_memory_context(memory_turns or [])
     for attempt_index, strategy in enumerate(strategies, start=1):
-        steered_prompt = build_steered_prompt(prompt, strategy) + retry_appendix
+        steered_prompt = memory_prefix + build_steered_prompt(prompt, strategy) + retry_appendix
         command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd, strategy=strategy)
         result: LiveCaptureResult = runner(command, cwd=cwd)
         saved = save_capture_session(

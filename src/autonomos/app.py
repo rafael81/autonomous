@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .io import read_jsonl
+from .memory import MemoryTurn, append_session_memory, load_session_memory
 from .postprocess import codexify_message
 from .workflow import ObservationRunResult, observe_prompt
 
@@ -25,6 +26,7 @@ class ChatRunSummary:
     comparison_summary_path: Path | None
     request_user_input_path: Path | None
     adaptive_notes: str
+    memory_path: Path | None
 
 
 def run_chat(
@@ -35,7 +37,10 @@ def run_chat(
     captures_dir: Path,
     promote_dir: Path,
     baselines_dir: Path,
+    memory_dir: Path,
+    session_id: str,
 ) -> ChatRunSummary:
+    memory_turns = load_session_memory(memory_dir, session_id)
     outcome: ObservationRunResult = observe_prompt(
         prompt=prompt,
         profile=profile,
@@ -43,9 +48,17 @@ def run_chat(
         captures_dir=captures_dir,
         promote_dir=promote_dir,
         baselines_dir=baselines_dir,
+        memory_turns=memory_turns,
     )
     final_message = codexify_message(extract_final_message(outcome.capture.normalized_path))
     baseline_matches = len([item for item in outcome.comparison_results if item.matches])
+    memory_path = None
+    if final_message:
+        memory_path = append_session_memory(
+            memory_dir,
+            session_id,
+            [MemoryTurn(role="user", text=prompt), MemoryTurn(role="assistant", text=final_message)],
+        )
     return ChatRunSummary(
         final_message=final_message,
         strategy_id=outcome.strategy.strategy_id,
@@ -60,6 +73,7 @@ def run_chat(
         comparison_summary_path=outcome.summary_path,
         request_user_input_path=outcome.request_user_input_path,
         adaptive_notes=outcome.adaptive_summary.notes,
+        memory_path=memory_path,
     )
 
 
