@@ -10,6 +10,7 @@ from pathlib import Path
 from .baseline import BaselineComparison, compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command
 from .live_capture import LiveCaptureResult, SavedCapturePaths, run_capture, save_capture_session
+from .orchestration import OrchestrationDecision, decide_orchestration
 from .strategy import StrategyDecision, build_steered_prompt, candidate_strategies
 
 
@@ -21,6 +22,7 @@ class ObservationRunResult:
     summary_path: Path | None
     strategy: StrategyDecision
     attempted_strategies: list[str]
+    orchestration: OrchestrationDecision
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,7 @@ class AttemptResult:
     capture: SavedCapturePaths
     comparison_results: list[BaselineComparison]
     strategy: StrategyDecision
+    orchestration: OrchestrationDecision
 
 
 def observe_prompt(
@@ -58,7 +61,20 @@ def observe_prompt(
                 normalized_path=saved.normalized_path,
                 baselines_root=baselines_dir,
             )
-        attempts.append(AttemptResult(capture=saved, comparison_results=comparison_results, strategy=strategy))
+        orchestration = decide_orchestration(
+            strategy=strategy,
+            comparison_results=comparison_results,
+            has_normalized_output=saved.normalized_path is not None,
+            prompt=prompt,
+        )
+        attempts.append(
+            AttemptResult(
+                capture=saved,
+                comparison_results=comparison_results,
+                strategy=strategy,
+                orchestration=orchestration,
+            )
+        )
         if any(item.matches for item in comparison_results):
             break
 
@@ -66,6 +82,7 @@ def observe_prompt(
     strategy = best_attempt.strategy
     saved = best_attempt.capture
     comparison_results = best_attempt.comparison_results
+    orchestration = best_attempt.orchestration
 
     promoted_example_dir: Path | None = None
     if promote_dir and saved.normalized_path:
@@ -83,6 +100,7 @@ def observe_prompt(
             build_comparison_summary(
                 prompt=prompt,
                 strategy=strategy,
+                orchestration=orchestration,
                 comparison_results=comparison_results,
                 promoted_example_dir=promoted_example_dir,
                 attempted_strategies=[attempt.strategy.strategy_id for attempt in attempts],
@@ -98,6 +116,7 @@ def observe_prompt(
         summary_path=summary_path,
         strategy=strategy,
         attempted_strategies=[attempt.strategy.strategy_id for attempt in attempts],
+        orchestration=orchestration,
     )
 
 
@@ -105,12 +124,13 @@ def select_best_attempt(attempts: list[AttemptResult]) -> AttemptResult:
     if not attempts:
         raise ValueError("at least one attempt is required")
 
-    def score_attempt(attempt: AttemptResult) -> tuple[int, int, int]:
+    def score_attempt(attempt: AttemptResult) -> tuple[int, int, int, int]:
         if not attempt.comparison_results:
-            return (1, 10_000, 10_000)
+            return (1, 10_000, 1, 10_000)
         best = min(item.score for item in attempt.comparison_results)
         match_bonus = 0 if any(item.matches for item in attempt.comparison_results) else 1
-        return (match_bonus, best, len(attempt.comparison_results))
+        retry_penalty = 1 if attempt.orchestration.should_retry else 0
+        return (match_bonus, best, retry_penalty, len(attempt.comparison_results))
 
     return min(attempts, key=score_attempt)
 
@@ -119,6 +139,7 @@ def build_comparison_summary(
     *,
     prompt: str,
     strategy: StrategyDecision,
+    orchestration: OrchestrationDecision,
     comparison_results: list[BaselineComparison],
     promoted_example_dir: Path | None,
     attempted_strategies: list[str],
@@ -142,6 +163,9 @@ def build_comparison_summary(
         "",
         "## Attempted Strategies",
         ", ".join(attempted_strategies) if attempted_strategies else "none",
+        "",
+        "## Orchestration Policy",
+        orchestration.policy_summary,
         "",
         "## Promoted Example",
         str(promoted_example_dir) if promoted_example_dir else "none",

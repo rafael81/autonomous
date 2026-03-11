@@ -54,6 +54,7 @@ def test_observe_prompt_runs_end_to_end(tmp_path: Path):
     assert len(outcome.comparison_results) == 1
     assert outcome.strategy.strategy_id == "simple_answer"
     assert outcome.attempted_strategies == ["simple_answer"]
+    assert outcome.orchestration.should_retry is False
 
 
 def test_observe_prompt_can_fallback_to_second_strategy(tmp_path: Path):
@@ -92,3 +93,4 @@ def test_observe_prompt_can_fallback_to_second_strategy(tmp_path: Path):
 
     assert outcome.strategy.strategy_id == "tool_oriented"
     assert outcome.attempted_strategies == ["planning", "tool_oriented"]
+    assert outcome.orchestration.should_retry is False
