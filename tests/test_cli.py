@@ -92,3 +92,32 @@ def test_chat_new_session_uses_generated_id(monkeypatch, capsys, tmp_path: Path)
     assert exit_code == 0
     assert captured_kwargs["session_id"].startswith("session-")
     assert "[session-id] session-" in captured.out
+
+
+def test_chat_defaults_to_roma_runtime_profile(monkeypatch, capsys, tmp_path: Path):
+    captured_kwargs = {}
+
+    class Summary:
+        final_message = "hello"
+        strategy_id = "simple_answer"
+        baseline_example_id = "example"
+        attempted_strategies = ["simple_answer"]
+        orchestration_summary = "approval=no, request_user_input=no, retry=no"
+        session_dir = tmp_path / "capture"
+        normalized_path = None
+        promoted_example_dir = None
+        baseline_matches = 0
+        baseline_total = 0
+        comparison_summary_path = None
+        request_user_input_path = None
+        adaptive_notes = "none"
+        memory_path = None
+        approval_request_path = None
+
+    monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: captured_kwargs.update(kwargs) or Summary())
+    monkeypatch.setattr(sys, "argv", ["autonomos", "chat", "hello"])
+
+    exit_code = cli.main()
+
+    assert exit_code == 0
+    assert captured_kwargs["profile"] == "roma_ws"

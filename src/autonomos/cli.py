@@ -21,6 +21,9 @@ from .memory import list_sessions
 from .orchestration import write_approval_response, write_request_user_input_response
 from .workflow import observe_prompt
 
+DEFAULT_RUNTIME_PROFILE = "roma_ws"
+DEFAULT_OBSERVE_PROFILE = "openai_ws"
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -44,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     capture_live = subparsers.add_parser("capture-live", help="Run codex exec and capture stdout/stderr.")
     capture_live.add_argument("prompt", help="Prompt to send to codex exec.")
-    capture_live.add_argument("--profile", default="openai_ws", help="Codex profile name.")
+    capture_live.add_argument("--profile", default=DEFAULT_OBSERVE_PROFILE, help="Codex profile name.")
     capture_live.add_argument("--cwd", default=".", help="Working directory for codex exec.")
     capture_live.add_argument("--output-dir", default="captures", help="Directory where live capture sessions will be stored.")
 
@@ -68,7 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     observe = subparsers.add_parser("observe", help="Run the full observation pipeline: capture, normalize, promote, compare.")
     observe.add_argument("prompt", help="Prompt to send to codex exec.")
-    observe.add_argument("--profile", default="openai_ws", help="Codex profile name.")
+    observe.add_argument("--profile", default=DEFAULT_OBSERVE_PROFILE, help="Codex profile name.")
     observe.add_argument("--cwd", default=".", help="Working directory for codex exec.")
     observe.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     observe.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
@@ -77,7 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     chat = subparsers.add_parser("chat", help="Run the user-facing chat flow and print the final assistant answer.")
     chat.add_argument("prompt", nargs="?", help="Prompt to send. If omitted, read from stdin.")
-    chat.add_argument("--profile", default="openai_ws", help="Codex profile name.")
+    chat.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
     chat.add_argument("--cwd", default=".", help="Working directory for codex exec.")
     chat.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     chat.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
@@ -100,7 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     resume = subparsers.add_parser("resume", help="Resume a run using a request-user-input response artifact.")
     resume.add_argument("prompt", nargs="?", help="Prompt to send. If omitted, read from stdin.")
     resume.add_argument("--response-file", required=True, help="Path to request-user-input-response.json")
-    resume.add_argument("--profile", default="openai_ws", help="Codex profile name.")
+    resume.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
     resume.add_argument("--cwd", default=".", help="Working directory for codex exec.")
     resume.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     resume.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
@@ -119,7 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
     sessions.add_argument("--latest", action="store_true", help="Print only the most recently active session id.")
 
     repl = subparsers.add_parser("repl", help="Run a simple interactive chat loop.")
-    repl.add_argument("--profile", default="openai_ws", help="Codex profile name.")
+    repl.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
     repl.add_argument("--cwd", default=".", help="Working directory for codex exec.")
     repl.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     repl.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")

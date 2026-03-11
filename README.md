@@ -56,6 +56,8 @@ Run the user-facing chat flow:
 ./.venv/bin/autonomos chat "say hello briefly"
 ```
 
+The user-facing runtime defaults to `roma_ws`, so `chat`, `resume`, and `repl` use the ChatGPT websocket bridge unless you override `--profile`.
+
 Compare a normalized trace against all baselines:
 
 ```bash
