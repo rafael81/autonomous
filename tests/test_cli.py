@@ -54,3 +54,41 @@ def test_sessions_latest_prints_most_recent(monkeypatch, capsys, tmp_path: Path)
     captured = capsys.readouterr()
     assert exit_code == 0
     assert captured.out.strip() == "new"
+
+
+def test_resolve_session_id_can_generate_new_id():
+    session_id = cli._resolve_session_id("default", True)
+
+    assert session_id.startswith("session-")
+    assert session_id != "default"
+
+
+def test_chat_new_session_uses_generated_id(monkeypatch, capsys, tmp_path: Path):
+    captured_kwargs = {}
+
+    class Summary:
+        final_message = "hello"
+        strategy_id = "simple_answer"
+        baseline_example_id = "example"
+        attempted_strategies = ["simple_answer"]
+        orchestration_summary = "approval=no, request_user_input=no, retry=no"
+        session_dir = tmp_path / "capture"
+        normalized_path = None
+        promoted_example_dir = None
+        baseline_matches = 0
+        baseline_total = 0
+        comparison_summary_path = None
+        request_user_input_path = None
+        adaptive_notes = "none"
+        memory_path = None
+        approval_request_path = None
+
+    monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: captured_kwargs.update(kwargs) or Summary())
+    monkeypatch.setattr(sys, "argv", ["autonomos", "chat", "hello", "--new-session"])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured_kwargs["session_id"].startswith("session-")
+    assert "[session-id] session-" in captured.out

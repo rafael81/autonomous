@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .app import run_chat
@@ -83,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
     chat.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     chat.add_argument("--session-id", default="default", help="Logical chat session id.")
+    chat.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this run.")
     chat.add_argument("--request-user-input-response", help="Optional request-user-input response JSON to include on this turn.")
 
     answer_rui = subparsers.add_parser("answer-user-input", help="Write a response file for a request-user-input artifact.")
@@ -105,6 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
     resume.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     resume.add_argument("--session-id", default="default", help="Logical chat session id.")
+    resume.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this resumed run.")
     resume.add_argument("--approval-response-file", help="Path to approval-response.json")
 
     transcript = subparsers.add_parser("transcript", help="Print a compact transcript from a normalized session trace.")
@@ -123,6 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
     repl.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
     repl.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     repl.add_argument("--session-id", default="default", help="Logical chat session id.")
+    repl.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this REPL.")
     return parser
 
 
@@ -233,6 +237,7 @@ def main() -> int:
             print(response_path)
             return 0
         if args.command == "chat":
+            session_id = _resolve_session_id(args.session_id, args.new_session)
             prompt = args.prompt
             if prompt is None:
                 prompt = sys.stdin.read().strip()
@@ -247,7 +252,7 @@ def main() -> int:
                 promote_dir=Path(args.promote_dir),
                 baselines_dir=Path(args.baselines_dir),
                 memory_dir=Path(args.memory_dir),
-                session_id=args.session_id,
+                session_id=session_id,
                 request_user_input_response_path=Path(args.request_user_input_response) if args.request_user_input_response else None,
                 approval_response_path=Path(args.approval_response_file) if hasattr(args, "approval_response_file") and args.approval_response_file else None,
             )
@@ -271,10 +276,12 @@ def main() -> int:
                 print(f"[approval-request] {summary.approval_request_path}")
             if summary.memory_path:
                 print(f"[memory] {summary.memory_path}")
+            print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
             print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
             return 0
         if args.command == "resume":
+            session_id = _resolve_session_id(args.session_id, args.new_session)
             prompt = args.prompt
             if prompt is None:
                 prompt = sys.stdin.read().strip()
@@ -289,7 +296,7 @@ def main() -> int:
                 promote_dir=Path(args.promote_dir),
                 baselines_dir=Path(args.baselines_dir),
                 memory_dir=Path(args.memory_dir),
-                session_id=args.session_id,
+                session_id=session_id,
                 request_user_input_response_path=Path(args.response_file),
                 approval_response_path=Path(args.approval_response_file) if args.approval_response_file else None,
             )
@@ -307,6 +314,7 @@ def main() -> int:
                 print(f"[approval-request] {summary.approval_request_path}")
             if summary.memory_path:
                 print(f"[memory] {summary.memory_path}")
+            print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
             print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
             return 0
@@ -324,7 +332,9 @@ def main() -> int:
                 print(f"{marker}\t{session_id}\t{count}\t{last_ts or '-'}")
             return 0
         if args.command == "repl":
+            session_id = _resolve_session_id(args.session_id, args.new_session)
             print("Autonomos REPL. Type /exit to quit.")
+            print(f"[session-id] {session_id}")
             while True:
                 try:
                     prompt = input("> ").strip()
@@ -342,7 +352,7 @@ def main() -> int:
                     promote_dir=Path(args.promote_dir),
                     baselines_dir=Path(args.baselines_dir),
                     memory_dir=Path(args.memory_dir),
-                    session_id=args.session_id,
+                    session_id=session_id,
                 )
                 _print_repl_summary(summary)
                 follow_up = _handle_repl_follow_up(
@@ -353,7 +363,7 @@ def main() -> int:
                     promote_dir=Path(args.promote_dir),
                     baselines_dir=Path(args.baselines_dir),
                     memory_dir=Path(args.memory_dir),
-                    session_id=args.session_id,
+                    session_id=session_id,
                 )
                 if follow_up is not None:
                     _print_repl_summary(follow_up)
@@ -491,3 +501,9 @@ def _print_transcript(rows: list[dict], *, show_deltas: bool) -> None:
             print(f"event> {event_type}")
     if final_message:
         print(f"final> {final_message}")
+
+
+def _resolve_session_id(session_id: str, new_session: bool) -> str:
+    if not new_session:
+        return session_id
+    return datetime.now(UTC).strftime("session-%Y%m%dT%H%M%SZ")
