@@ -22,10 +22,62 @@ const instructions =
     : 'You are Codex, a coding agent. Reply briefly.';
 const enableTools = payload.enableTools !== false;
 const toolCwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd();
+const policy = payload.policy && typeof payload.policy === 'object' ? payload.policy : {};
+const excludedRoots = new Set(Array.isArray(policy.excludedRoots) ? policy.excludedRoots : ['.git', '.venv', 'node_modules']);
+const preferredRoots = Array.isArray(policy.preferredRoots) ? policy.preferredRoots : [];
+const toolBudget = Number.isFinite(policy.toolBudget) ? Math.max(1, Number(policy.toolBudget)) : 6;
+const maxRepeatedToolCalls = Number.isFinite(policy.maxRepeatedToolCalls)
+  ? Math.max(1, Number(policy.maxRepeatedToolCalls))
+  : 2;
+const stopAfterEvidence = Number.isFinite(policy.stopAfterEvidence) ? Math.max(1, Number(policy.stopAfterEvidence)) : 2;
+const promptMode = typeof policy.promptMode === 'string' ? policy.promptMode : 'general';
+const inspectionMode = promptMode === 'repository_inspection' || promptMode === 'inspection_and_verification';
+const toolUsage = new Map();
+let evidenceCount = 0;
 
 const emit = (event) => {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 };
+
+const nowMs = () => Date.now();
+
+function relativeFromWorkspace(targetPath) {
+  return path.relative(toolCwd, targetPath).replace(/\\/g, '/') || '.';
+}
+
+function isExcludedName(name) {
+  return excludedRoots.has(name);
+}
+
+function isExcludedPath(targetPath) {
+  const relative = relativeFromWorkspace(targetPath);
+  return relative.split('/').some((part) => excludedRoots.has(part));
+}
+
+function noteToolUsage(toolName, summary = {}) {
+  const count = (toolUsage.get(toolName) || 0) + 1;
+  toolUsage.set(toolName, count);
+  emit({ type: 'tool_profile', name: toolName, count, summary });
+}
+
+function toolBudgetExceeded(toolName) {
+  const total = Array.from(toolUsage.values()).reduce((sum, count) => sum + count, 0);
+  const repeated = toolUsage.get(toolName) || 0;
+  return total >= toolBudget || repeated >= maxRepeatedToolCalls;
+}
+
+function shouldDeclineTool(toolName) {
+  if (toolBudgetExceeded(toolName)) {
+    return `Error: tool budget exceeded for ${toolName}.`;
+  }
+  if (inspectionMode && evidenceCount >= stopAfterEvidence && toolName !== 'read_file') {
+    return `Error: enough evidence gathered; skip ${toolName}.`;
+  }
+  if (inspectionMode && toolName === 'bash') {
+    return 'Error: bash is disabled for repository inspection; use built-in inspection tools.';
+  }
+  return null;
+}
 
 const { token, accountId } = getCodexCredentials();
 if (!token || !accountId) {
@@ -37,6 +89,10 @@ const sessionId = crypto.randomUUID();
 emit({ type: 'session_start', session_id: sessionId, model });
 
 async function runBashTool(args = {}) {
+  const decline = shouldDeclineTool('bash');
+  if (decline) {
+    return decline;
+  }
   const command = typeof args.command === 'string' ? args.command.trim() : '';
   if (!command) {
     return 'Error: command is required.';
@@ -46,6 +102,7 @@ async function runBashTool(args = {}) {
   const timeoutMs = Number.isFinite(args.timeout_ms) ? Math.max(500, Math.min(30000, Number(args.timeout_ms))) : 8000;
   const shell = typeof args.shell === 'string' && args.shell.trim() ? args.shell.trim() : '/bin/bash';
   const maxOutputChars = Number.isFinite(args.max_output_chars) ? Math.max(256, Math.min(16000, Number(args.max_output_chars))) : 8000;
+  const startedAt = nowMs();
 
   return await new Promise((resolve) => {
     const child = spawn(shell, ['-lc', command], {
@@ -74,6 +131,14 @@ async function runBashTool(args = {}) {
     });
     child.on('close', (code, signal) => {
       clearTimeout(timer);
+      evidenceCount += stdout || stderr ? 1 : 0;
+      noteToolUsage('bash', {
+        command,
+        duration_ms: nowMs() - startedAt,
+        stdout_chars: stdout.length,
+        stderr_chars: stderr.length,
+        exit_code: code ?? 'n/a',
+      });
       resolve(
         [
           `command: ${command}`,
@@ -103,26 +168,59 @@ function resolveToolPath(candidate = '.') {
 }
 
 async function listDirTool(args = {}) {
+  const decline = shouldDeclineTool('list_dir');
+  if (decline) {
+    return decline;
+  }
   const dir = resolveToolPath(args.path || '.');
-  const maxEntries = Number.isFinite(args.max_entries) ? Math.max(1, Math.min(200, Number(args.max_entries))) : 50;
-  const entries = fs.readdirSync(dir, { withFileTypes: true }).slice(0, maxEntries);
+  if (isExcludedPath(dir)) {
+    return `Error: excluded path ${relativeFromWorkspace(dir)}.`;
+  }
+  const requestedMaxEntries = Number.isFinite(args.max_entries) ? Number(args.max_entries) : 50;
+  const maxEntries = Math.max(1, Math.min(40, requestedMaxEntries));
+  const startedAt = nowMs();
+  const entries = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => !isExcludedName(entry.name))
+    .filter(
+      (entry) =>
+        preferredRoots.length === 0 ||
+        relativeFromWorkspace(dir) !== '.' ||
+        preferredRoots.includes(entry.name) ||
+        !entry.isDirectory()
+    )
+    .slice(0, maxEntries);
+  evidenceCount += entries.length > 0 ? 1 : 0;
+  noteToolUsage('list_dir', {
+    path: relativeFromWorkspace(dir),
+    entry_count: entries.length,
+    duration_ms: nowMs() - startedAt,
+  });
   return entries
     .map((entry) => `${entry.isDirectory() ? 'dir' : 'file'}\t${entry.name}`)
     .join('\n');
 }
 
 async function searchFilesTool(args = {}) {
+  const decline = shouldDeclineTool('search_files');
+  if (decline) {
+    return decline;
+  }
   const query = typeof args.query === 'string' ? args.query.trim() : '';
   if (!query) {
     return 'Error: query is required.';
   }
   const dir = resolveToolPath(args.path || '.');
+  if (isExcludedPath(dir)) {
+    return `Error: excluded path ${relativeFromWorkspace(dir)}.`;
+  }
   const maxResults = Number.isFinite(args.max_results) ? Math.max(1, Math.min(200, Number(args.max_results))) : 50;
   const results = [];
+  const startedAt = nowMs();
   const visit = (current) => {
     if (results.length >= maxResults) return;
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.venv') continue;
+      if (isExcludedName(entry.name)) continue;
       const fullPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
         visit(fullPath);
@@ -136,14 +234,38 @@ async function searchFilesTool(args = {}) {
     }
   };
   visit(dir);
+  evidenceCount += results.length > 0 ? 1 : 0;
+  noteToolUsage('search_files', {
+    path: relativeFromWorkspace(dir),
+    query,
+    result_count: results.length,
+    duration_ms: nowMs() - startedAt,
+  });
   return results.length > 0 ? results.join('\n') : '(no matches)';
 }
 
 async function readFileTool(args = {}) {
+  const decline = shouldDeclineTool('read_file');
+  if (decline) {
+    return decline;
+  }
   const filePath = resolveToolPath(args.path);
+  if (isExcludedPath(filePath)) {
+    return `Error: excluded path ${relativeFromWorkspace(filePath)}.`;
+  }
+  const startedAt = nowMs();
   const startLine = Number.isFinite(args.start_line) ? Math.max(1, Number(args.start_line)) : 1;
-  const endLine = Number.isFinite(args.end_line) ? Math.max(startLine, Number(args.end_line)) : startLine + 199;
+  const maxSpan = 80;
+  const requestedEndLine = Number.isFinite(args.end_line) ? Number(args.end_line) : startLine + 39;
+  const endLine = Math.min(Math.max(startLine, requestedEndLine), startLine + maxSpan - 1);
   const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+  evidenceCount += 1;
+  noteToolUsage('read_file', {
+    path: relativeFromWorkspace(filePath),
+    start_line: startLine,
+    end_line: endLine,
+    duration_ms: nowMs() - startedAt,
+  });
   return lines
     .slice(startLine - 1, endLine)
     .map((line, index) => `${startLine + index}: ${line}`)
@@ -151,21 +273,29 @@ async function readFileTool(args = {}) {
 }
 
 async function grepTextTool(args = {}) {
+  const decline = shouldDeclineTool('grep_text');
+  if (decline) {
+    return decline;
+  }
   const pattern = typeof args.pattern === 'string' ? args.pattern.trim() : '';
   if (!pattern) {
     return 'Error: pattern is required.';
   }
   const dir = resolveToolPath(args.path || '.');
+  if (isExcludedPath(dir)) {
+    return `Error: excluded path ${relativeFromWorkspace(dir)}.`;
+  }
   const maxResults = Number.isFinite(args.max_results) ? Math.max(1, Math.min(200, Number(args.max_results))) : 50;
   const caseSensitive = args.case_sensitive === true;
   const results = [];
+  const startedAt = nowMs();
   const matcher = caseSensitive
     ? (text) => text.includes(pattern)
     : (text) => text.toLowerCase().includes(pattern.toLowerCase());
   const visit = (current) => {
     if (results.length >= maxResults) return;
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.venv') continue;
+      if (isExcludedName(entry.name)) continue;
       const fullPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
         visit(fullPath);
@@ -187,15 +317,29 @@ async function grepTextTool(args = {}) {
     }
   };
   visit(dir);
+  evidenceCount += results.length > 0 ? 1 : 0;
+  noteToolUsage('grep_text', {
+    path: relativeFromWorkspace(dir),
+    pattern,
+    result_count: results.length,
+    duration_ms: nowMs() - startedAt,
+  });
   return results.length > 0 ? results.join('\n') : '(no matches)';
 }
 
 async function globPathsTool(args = {}) {
+  const decline = shouldDeclineTool('glob_paths');
+  if (decline) {
+    return decline;
+  }
   const pattern = typeof args.pattern === 'string' ? args.pattern.trim() : '';
   if (!pattern) {
     return 'Error: pattern is required.';
   }
   const root = resolveToolPath(args.path || '.');
+  if (isExcludedPath(root)) {
+    return `Error: excluded path ${relativeFromWorkspace(root)}.`;
+  }
   const maxResults = Number.isFinite(args.max_results) ? Math.max(1, Math.min(200, Number(args.max_results))) : 100;
   const relativePattern = path.isAbsolute(pattern) ? path.relative(root, pattern) : pattern;
   const normalizedPattern = relativePattern.replace(/\\/g, '/');
@@ -210,6 +354,7 @@ async function globPathsTool(args = {}) {
         .replace(/\?/g, '.') + '$'
     );
 
+  const startedAt = nowMs();
   const walk = (currentDir, index, relativeBase = '') => {
     if (matches.length >= maxResults) return;
     if (index >= segments.length) {
@@ -221,7 +366,7 @@ async function globPathsTool(args = {}) {
       walk(currentDir, index + 1, relativeBase);
       for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.venv') continue;
+        if (isExcludedName(entry.name)) continue;
         const nextBase = relativeBase ? `${relativeBase}/${entry.name}` : entry.name;
         walk(path.join(currentDir, entry.name), index, nextBase);
         if (matches.length >= maxResults) return;
@@ -231,7 +376,7 @@ async function globPathsTool(args = {}) {
 
     const matcher = wildcardToRegExp(segment);
     for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
-      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.venv') continue;
+      if (isExcludedName(entry.name)) continue;
       if (!matcher.test(entry.name)) continue;
       const nextBase = relativeBase ? `${relativeBase}/${entry.name}` : entry.name;
       const nextPath = path.join(currentDir, entry.name);
@@ -245,6 +390,13 @@ async function globPathsTool(args = {}) {
   };
 
   walk(root, 0);
+  evidenceCount += matches.length > 0 ? 1 : 0;
+  noteToolUsage('glob_paths', {
+    path: relativeFromWorkspace(root),
+    pattern,
+    result_count: matches.length,
+    duration_ms: nowMs() - startedAt,
+  });
   return matches.length > 0 ? matches.join('\n') : '(no matches)';
 }
 
@@ -369,9 +521,23 @@ agent.on('finalize', (message) => emit({ type: 'assistant_message', text: messag
 
 try {
   await agent.chat(prompt, history);
-  emit({ type: 'session_end', ok: true });
+  emit({
+    type: 'session_end',
+    ok: true,
+    tool_summary: Object.fromEntries(toolUsage),
+    evidence_count: evidenceCount,
+    tool_budget: toolBudget,
+    stop_after_evidence: stopAfterEvidence,
+  });
 } catch (error) {
   emit({ type: 'error', message: error instanceof Error ? error.message : String(error) });
-  emit({ type: 'session_end', ok: false });
+  emit({
+    type: 'session_end',
+    ok: false,
+    tool_summary: Object.fromEntries(toolUsage),
+    evidence_count: evidenceCount,
+    tool_budget: toolBudget,
+    stop_after_evidence: stopAfterEvidence,
+  });
   process.exit(1);
 }

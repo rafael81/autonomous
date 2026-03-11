@@ -11,8 +11,9 @@ def test_normalize_roma_events_maps_bridge_events():
             {"type": "assistant_message_delta", "text": "hel"},
             {"type": "tool_call", "name": "bash", "callId": "call-1", "args": {"command": "pwd"}},
             {"type": "tool_result", "name": "bash", "callId": "call-1", "output": "ok"},
+            {"type": "tool_profile", "name": "bash", "count": 1, "summary": {"duration_ms": 12}},
             {"type": "assistant_message", "text": "hello"},
-            {"type": "session_end", "ok": True},
+            {"type": "session_end", "ok": True, "tool_summary": {"bash": 1}, "evidence_count": 1, "tool_budget": 6},
         ],
     )
 
@@ -23,12 +24,15 @@ def test_normalize_roma_events_maps_bridge_events():
         "assistant_message_delta",
         "tool_call_request",
         "tool_call_result",
+        "tool_profile",
         "assistant_message",
         "task_complete",
         "session_end",
     ]
     assert rows[4]["payload"]["tool_name"] == "bash"
-    assert rows[6]["payload"]["text"] == "hello"
+    assert rows[6]["payload"]["tool_name"] == "bash"
+    assert rows[7]["payload"]["text"] == "hello"
+    assert rows[8]["payload"]["tool_summary"] == {"bash": 1}
 
 
 def test_normalize_roma_events_preserves_builtin_tool_names():

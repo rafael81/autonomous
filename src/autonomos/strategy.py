@@ -94,7 +94,35 @@ def choose_strategy(prompt: str) -> StrategyDecision:
         return _by_id("planning")
     if any(token in text for token in ("write a story", "write an essay", "long", "story", "narrative")):
         return _by_id("long_form")
-    if any(token in text for token in ("check", "inspect", "look up", "search", "read", "run", "test", "verify")):
+    if any(
+        token in text
+        for token in (
+            "check",
+            "inspect",
+            "look up",
+            "search",
+            "read",
+            "run",
+            "test",
+            "verify",
+            "repository",
+            "repo",
+            "directory",
+            "file",
+            "folder",
+            "structure",
+            "analyze",
+            "분석",
+            "구조",
+            "프로젝트",
+            "저장소",
+            "파일",
+            "디렉터리",
+            "읽",
+            "검색",
+            "확인",
+        )
+    ):
         return _by_id("tool_oriented")
     return _by_id("simple_answer")
 

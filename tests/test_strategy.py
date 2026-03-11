@@ -16,6 +16,12 @@ def test_choose_strategy_selects_tool_oriented():
     assert decision.prefer_full_auto is True
 
 
+def test_choose_strategy_selects_tool_oriented_for_korean_structure_analysis():
+    decision = choose_strategy("현재 프로젝트 구조 분석")
+
+    assert decision.strategy_id == "tool_oriented"
+
+
 def test_build_steered_prompt_embeds_guidance():
     decision = choose_strategy("Say hello briefly.")
     text = build_steered_prompt("Say hello briefly.", decision)

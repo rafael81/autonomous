@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .io import write_jsonl
 from .memory import MemoryTurn
+from .policy import PromptPolicy
 from .schema import build_event
 from .strategy import StrategyDecision
 
@@ -45,6 +46,7 @@ def run_roma_chat(
     cwd: Path,
     instructions: str,
     enable_tools: bool,
+    policy: PromptPolicy | None = None,
     model: str = "gpt-5.3-codex-spark",
     roma_root: Path = DEFAULT_ROMA_ROOT,
 ) -> RomaChatResult:
@@ -56,6 +58,18 @@ def run_roma_chat(
         "instructions": instructions,
         "enableTools": enable_tools,
         "cwd": str(cwd),
+        "policy": {
+            "promptMode": policy.prompt_mode,
+            "toolBudget": policy.tool_budget,
+            "maxRepeatedToolCalls": policy.max_repeated_tool_calls,
+            "preferredRoots": list(policy.preferred_roots),
+            "excludedRoots": list(policy.excluded_roots),
+            "stopAfterEvidence": policy.stop_after_evidence,
+            "preferredTools": list(policy.preferred_tools),
+            "fallbackTool": policy.fallback_tool,
+        }
+        if policy
+        else None,
     }
     completed = subprocess.run(
         ["node", str(bridge_script)],
@@ -192,6 +206,21 @@ def normalize_roma_events(*, prompt: str, raw_events: list[dict]) -> list[dict]:
                     call_id=event.get("callId"),
                 )
             )
+        elif event_type == "tool_profile":
+            normalized.append(
+                build_event(
+                    ts="",
+                    source="live_capture",
+                    channel="tool",
+                    event_type="tool_profile",
+                    payload={
+                        "tool_name": event.get("name"),
+                        "count": event.get("count"),
+                        "summary": event.get("summary", {}),
+                    },
+                    raw=event,
+                )
+            )
         elif event_type == "error":
             normalized.append(
                 build_event(
@@ -210,7 +239,12 @@ def normalize_roma_events(*, prompt: str, raw_events: list[dict]) -> list[dict]:
                     source="live_capture",
                     channel="roma_ws",
                     event_type="task_complete",
-                    payload={"ok": event.get("ok", False)},
+                    payload={
+                        "ok": event.get("ok", False),
+                        "tool_summary": event.get("tool_summary", {}),
+                        "evidence_count": event.get("evidence_count"),
+                        "tool_budget": event.get("tool_budget"),
+                    },
                     raw=event,
                 )
             )

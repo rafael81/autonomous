@@ -66,7 +66,8 @@ def run_chat(
         approval_prefix = render_approval_response(approval_response_path)
         memory_prefix = render_memory_context(memory_turns)
         for attempt_index, strategy in enumerate(candidate_strategies(prompt), start=1):
-            policy_guidance = render_policy_guidance(infer_prompt_policy(prompt, strategy))
+            policy = infer_prompt_policy(prompt, strategy)
+            policy_guidance = render_policy_guidance(policy)
             steered_prompt = (
                 memory_prefix
                 + approval_prefix
@@ -83,6 +84,7 @@ def run_chat(
                 cwd=cwd,
                 instructions=memory_prefix + policy_guidance + "\n" + build_steered_prompt(prompt, strategy),
                 enable_tools=strategy.strategy_id == "tool_oriented",
+                policy=policy,
             )
             comparison_results = (
                 compare_capture_against_baselines(
