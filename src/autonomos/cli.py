@@ -348,20 +348,19 @@ def main() -> int:
                     memory_dir=Path(args.memory_dir),
                     session_id=args.session_id,
                 )
-                if summary.final_message:
-                    print(summary.final_message)
-                else:
-                    print("No final assistant message was captured.")
-                print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
-                print(f"[policy] {summary.orchestration_summary}")
-                if summary.approval_request_path:
-                    approval = _handle_inline_approval(summary.approval_request_path)
-                    if approval:
-                        print(f"[approval] {approval}")
-                if summary.request_user_input_path:
-                    response = _handle_inline_request_user_input(summary.request_user_input_path)
-                    if response:
-                        print(f"[request-user-input] {response}")
+                _print_repl_summary(summary)
+                follow_up = _handle_repl_follow_up(
+                    summary=summary,
+                    profile=args.profile,
+                    cwd=Path(args.cwd),
+                    captures_dir=Path(args.captures_dir),
+                    promote_dir=Path(args.promote_dir),
+                    baselines_dir=Path(args.baselines_dir),
+                    memory_dir=Path(args.memory_dir),
+                    session_id=args.session_id,
+                )
+                if follow_up is not None:
+                    _print_repl_summary(follow_up)
             return 0
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
@@ -410,4 +409,54 @@ def _handle_inline_approval(request_path: Path) -> Path | None:
         request_path=request_path,
         decision=selected,
         notes=notes,
+    )
+
+
+def _print_repl_summary(summary) -> None:
+    if summary.final_message:
+        print(summary.final_message)
+    else:
+        print("No final assistant message was captured.")
+    print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+    print(f"[policy] {summary.orchestration_summary}")
+    if summary.request_user_input_path:
+        print(f"[request-user-input] {summary.request_user_input_path}")
+    if summary.approval_request_path:
+        print(f"[approval-request] {summary.approval_request_path}")
+
+
+def _handle_repl_follow_up(
+    *,
+    summary,
+    profile: str,
+    cwd: Path,
+    captures_dir: Path,
+    promote_dir: Path,
+    baselines_dir: Path,
+    memory_dir: Path,
+    session_id: str,
+):
+    approval_response = None
+    user_input_response = None
+    if summary.approval_request_path:
+        approval_response = _handle_inline_approval(summary.approval_request_path)
+        if approval_response:
+            print(f"[approval] {approval_response}")
+    if summary.request_user_input_path:
+        user_input_response = _handle_inline_request_user_input(summary.request_user_input_path)
+        if user_input_response:
+            print(f"[request-user-input] {user_input_response}")
+    if approval_response is None and user_input_response is None:
+        return None
+    return run_chat(
+        prompt="continue",
+        profile=profile,
+        cwd=cwd,
+        captures_dir=captures_dir,
+        promote_dir=promote_dir,
+        baselines_dir=baselines_dir,
+        memory_dir=memory_dir,
+        session_id=session_id,
+        request_user_input_response_path=user_input_response,
+        approval_response_path=approval_response,
     )
