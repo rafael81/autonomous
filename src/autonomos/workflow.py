@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .adaptive import AdaptiveSummary, summarize_attempt_progress
 from .baseline import BaselineComparison, compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command
 from .live_capture import LiveCaptureResult, SavedCapturePaths, run_capture, save_capture_session
@@ -29,6 +30,7 @@ class ObservationRunResult:
     attempted_strategies: list[str]
     orchestration: OrchestrationDecision
     request_user_input_path: Path | None
+    adaptive_summary: AdaptiveSummary
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,7 @@ def observe_prompt(
     request_user_input_path: Path | None = None
     if orchestration.should_request_user_input:
         request_user_input_path = write_request_user_input_artifact(session_dir=saved.session_dir, prompt=prompt)
+    adaptive_summary = summarize_attempt_progress([attempt.comparison_results for attempt in attempts])
 
     promoted_example_dir: Path | None = None
     if promote_dir and saved.normalized_path:
@@ -115,6 +118,7 @@ def observe_prompt(
                 comparison_results=comparison_results,
                 promoted_example_dir=promoted_example_dir,
                 attempted_strategies=[attempt.strategy.strategy_id for attempt in attempts],
+                adaptive_summary=adaptive_summary,
             )
             + "\n",
             encoding="utf-8",
@@ -129,6 +133,7 @@ def observe_prompt(
         attempted_strategies=[attempt.strategy.strategy_id for attempt in attempts],
         orchestration=orchestration,
         request_user_input_path=request_user_input_path,
+        adaptive_summary=adaptive_summary,
     )
 
 
@@ -155,6 +160,7 @@ def build_comparison_summary(
     comparison_results: list[BaselineComparison],
     promoted_example_dir: Path | None,
     attempted_strategies: list[str],
+    adaptive_summary: AdaptiveSummary,
 ) -> str:
     sorted_results = sorted(
         comparison_results,
@@ -178,6 +184,9 @@ def build_comparison_summary(
         "",
         "## Orchestration Policy",
         orchestration.policy_summary,
+        "",
+        "## Adaptive Summary",
+        adaptive_summary.notes,
         "",
         "## Promoted Example",
         str(promoted_example_dir) if promoted_example_dir else "none",

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .io import read_jsonl
+from .postprocess import codexify_message
 from .workflow import ObservationRunResult, observe_prompt
 
 
@@ -23,6 +24,7 @@ class ChatRunSummary:
     baseline_total: int
     comparison_summary_path: Path | None
     request_user_input_path: Path | None
+    adaptive_notes: str
 
 
 def run_chat(
@@ -42,7 +44,7 @@ def run_chat(
         promote_dir=promote_dir,
         baselines_dir=baselines_dir,
     )
-    final_message = extract_final_message(outcome.capture.normalized_path)
+    final_message = codexify_message(extract_final_message(outcome.capture.normalized_path))
     baseline_matches = len([item for item in outcome.comparison_results if item.matches])
     return ChatRunSummary(
         final_message=final_message,
@@ -57,6 +59,7 @@ def run_chat(
         baseline_total=len(outcome.comparison_results),
         comparison_summary_path=outcome.summary_path,
         request_user_input_path=outcome.request_user_input_path,
+        adaptive_notes=outcome.adaptive_summary.notes,
     )
 
 

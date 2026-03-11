@@ -56,6 +56,7 @@ def test_observe_prompt_runs_end_to_end(tmp_path: Path):
     assert outcome.attempted_strategies == ["simple_answer"]
     assert outcome.orchestration.should_retry is False
     assert outcome.request_user_input_path is None
+    assert outcome.adaptive_summary.best_score == 0
 
 
 def test_observe_prompt_can_fallback_to_second_strategy(tmp_path: Path):
@@ -95,6 +96,7 @@ def test_observe_prompt_can_fallback_to_second_strategy(tmp_path: Path):
     assert outcome.strategy.strategy_id == "tool_oriented"
     assert outcome.attempted_strategies == ["planning", "tool_oriented"]
     assert outcome.orchestration.should_retry is False
+    assert outcome.adaptive_summary.improved is True
 
 
 def test_observe_prompt_writes_request_user_input_artifact(tmp_path: Path):

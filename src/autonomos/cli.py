@@ -203,6 +203,7 @@ def main() -> int:
             print(f"[comparison] {summary.comparison_summary_path}")
         if summary.request_user_input_path:
             print(f"[request-user-input] {summary.request_user_input_path}")
+        print(f"[adaptive] {summary.adaptive_notes}")
         print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
         return 0
 
