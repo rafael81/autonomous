@@ -5,11 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .baseline import compare_capture_against_baselines
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory, load_session_memory
+from .orchestration import decide_orchestration, write_approval_artifact, write_request_user_input_artifact
 from .postprocess import codexify_message
 from .roma_runtime import run_roma_chat
-from .strategy import choose_strategy
+from .strategy import build_steered_prompt, choose_strategy
 from .workflow import ObservationRunResult, observe_prompt
 
 
@@ -54,8 +56,30 @@ def run_chat(
             history=memory_turns,
             captures_dir=captures_dir,
             cwd=cwd,
+            instructions=build_steered_prompt(prompt, strategy),
+            enable_tools=strategy.strategy_id == "tool_oriented",
         )
         final_message = codexify_message(result.final_message)
+        comparison_results = (
+            compare_capture_against_baselines(
+                normalized_path=result.normalized_path,
+                baselines_root=baselines_dir,
+            )
+            if baselines_dir.exists() and result.normalized_path.exists()
+            else []
+        )
+        orchestration = decide_orchestration(
+            strategy=strategy,
+            comparison_results=comparison_results,
+            has_normalized_output=result.normalized_path.exists(),
+            prompt=prompt,
+        )
+        request_user_input_path = None
+        approval_request_path = None
+        if orchestration.requires_approval:
+            approval_request_path = write_approval_artifact(session_dir=result.session_dir, prompt=prompt)
+        if orchestration.should_request_user_input:
+            request_user_input_path = write_request_user_input_artifact(session_dir=result.session_dir, prompt=prompt)
         if final_message:
             memory_path = append_session_memory(
                 memory_dir,
@@ -67,17 +91,17 @@ def run_chat(
             strategy_id=strategy.strategy_id,
             baseline_example_id=strategy.baseline_example_id,
             attempted_strategies=[strategy.strategy_id],
-            orchestration_summary="approval=no, request_user_input=no, retry=no",
+            orchestration_summary=orchestration.policy_summary,
             session_dir=result.session_dir,
             normalized_path=result.normalized_path,
             promoted_example_dir=None,
-            baseline_matches=0,
-            baseline_total=0,
+            baseline_matches=len([item for item in comparison_results if item.matches]),
+            baseline_total=len(comparison_results),
             comparison_summary_path=None,
-            request_user_input_path=None,
-            adaptive_notes="Roma runtime bridge executed.",
+            request_user_input_path=request_user_input_path,
+            adaptive_notes="Roma runtime bridge executed with strategy steering.",
             memory_path=memory_path,
-            approval_request_path=None,
+            approval_request_path=approval_request_path,
         )
 
     outcome: ObservationRunResult = observe_prompt(

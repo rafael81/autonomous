@@ -23,7 +23,9 @@ class RomaChatResult:
     session_dir: Path
     normalized_path: Path
     raw_jsonl_path: Path
+    stdout_path: Path
     stderr_path: Path
+    meta_path: Path
 
 
 def run_roma_chat(
@@ -32,6 +34,8 @@ def run_roma_chat(
     history: list[MemoryTurn],
     captures_dir: Path,
     cwd: Path,
+    instructions: str,
+    enable_tools: bool,
     model: str = "gpt-5.3-codex-spark",
     roma_root: Path = DEFAULT_ROMA_ROOT,
 ) -> RomaChatResult:
@@ -40,6 +44,9 @@ def run_roma_chat(
         "prompt": prompt,
         "history": [{"role": turn.role, "content": turn.text} for turn in history],
         "model": model,
+        "instructions": instructions,
+        "enableTools": enable_tools,
+        "cwd": str(cwd),
     }
     completed = subprocess.run(
         ["node", str(bridge_script)],
@@ -59,12 +66,33 @@ def run_roma_chat(
     session_dir.mkdir(parents=True, exist_ok=True)
     raw_jsonl_path = session_dir / "raw.jsonl"
     raw_jsonl_path.write_text(completed.stdout if completed.stdout.endswith("\n") else completed.stdout + "\n", encoding="utf-8")
+    stdout_path = session_dir / "stdout.txt"
+    stdout_path.write_text(completed.stdout, encoding="utf-8")
     stderr_path = session_dir / "stderr.txt"
     stderr_path.write_text(completed.stderr, encoding="utf-8")
     (session_dir / "prompt.txt").write_text(prompt + "\n", encoding="utf-8")
     normalized_path = session_dir / "normalized.jsonl"
     normalized = normalize_roma_events(prompt=prompt, raw_events=events)
     write_jsonl(normalized_path, normalized)
+    meta_path = session_dir / "meta.json"
+    meta_path.write_text(
+        json.dumps(
+            {
+                "captured_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                "capture_mode": "roma_ws",
+                "runtime": "roma_bridge",
+                "returncode": completed.returncode,
+                "has_raw_jsonl": True,
+                "has_normalized_jsonl": True,
+                "cwd": str(cwd),
+                "model": model,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     final_message = next(
         (event["payload"].get("text") for event in reversed(normalized) if event["event_type"] == "assistant_message"),
         None,
@@ -74,7 +102,9 @@ def run_roma_chat(
         session_dir=session_dir,
         normalized_path=normalized_path,
         raw_jsonl_path=raw_jsonl_path,
+        stdout_path=stdout_path,
         stderr_path=stderr_path,
+        meta_path=meta_path,
     )
 
 
