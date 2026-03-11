@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .codex_exec import build_exec_command, render_codex_config_toml
+from .codex_exec import build_exec_command, describe_ws_runtime, render_codex_config_toml
 from .compare import compare_normalized_sequences
 from .config import load_ws_auth_config
 from .examples import build_examples_dataset
@@ -31,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     print_ws = subparsers.add_parser("print-ws-config", help="Print Codex config TOML for websocket-based capture.")
     print_ws.add_argument("--output", help="Optional output path for config.toml")
+    print_ws.add_argument("--describe-runtime", action="store_true", help="Also print derived runtime websocket auth metadata.")
 
     capture_live = subparsers.add_parser("capture-live", help="Run codex exec and capture stdout/stderr.")
     capture_live.add_argument("prompt", help="Prompt to send to codex exec.")
@@ -55,10 +56,13 @@ def main() -> int:
         print(f"wrote examples to {args.output_dir}")
         return 0
     if args.command == "print-ws-config":
-        config_text = render_codex_config_toml(load_ws_auth_config())
+        auth = load_ws_auth_config()
+        config_text = render_codex_config_toml(auth)
         if args.output:
             Path(args.output).write_text(config_text, encoding="utf-8")
         print(config_text, end="" if config_text.endswith("\n") else "\n")
+        if args.describe_runtime:
+            print(describe_ws_runtime(auth))
         return 0
     if args.command == "capture-live":
         command = build_exec_command(prompt=args.prompt, profile=args.profile, cwd=Path(args.cwd))

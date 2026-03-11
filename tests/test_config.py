@@ -1,5 +1,7 @@
-from autonomos.codex_exec import build_exec_command, render_codex_config_toml
-from autonomos.config import load_ws_auth_config
+import json
+
+from autonomos.codex_exec import build_exec_command, describe_ws_runtime, render_codex_config_toml
+from autonomos.config import load_codex_auth_file, load_ws_auth_config
 
 
 def test_load_ws_auth_config_from_env():
@@ -30,3 +32,29 @@ def test_build_exec_command_includes_json_and_profile():
     command = build_exec_command(prompt="hello", profile="openai_ws", json_output=True)
 
     assert command == ["codex", "exec", "--profile", "openai_ws", "--json", "hello"]
+
+
+def test_load_codex_auth_file_reads_token_and_account(tmp_path):
+    auth_path = tmp_path / "auth.json"
+    auth_path.write_text(json.dumps({"tokens": {"access_token": "abc", "account_id": "acct"}}), encoding="utf-8")
+
+    payload = load_codex_auth_file(auth_path)
+
+    assert payload == {"tokens": {"access_token": "abc", "account_id": "acct"}}
+
+
+def test_chatgpt_runtime_headers_match_roma_style():
+    config = load_ws_auth_config(
+        {
+            "OPENAI_API_KEY": "test-key",
+            "AUTONOMOS_ACCOUNT_ID": "acct-1",
+            "AUTONOMOS_WS_BASE_URL": "wss://chatgpt.com/backend-api/codex",
+        }
+    )
+
+    runtime = describe_ws_runtime(config)
+
+    assert runtime["account_id_present"] is True
+    assert "Authorization" in runtime["header_keys"]
+    assert "chatgpt-account-id" in runtime["header_keys"]
+    assert "openai-beta" in runtime["header_keys"]

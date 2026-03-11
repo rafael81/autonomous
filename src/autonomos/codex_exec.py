@@ -25,6 +25,17 @@ def render_codex_config_toml(auth: WebSocketAuthConfig) -> str:
     )
 
 
+def describe_ws_runtime(auth: WebSocketAuthConfig) -> dict[str, object]:
+    return {
+        "base_url": auth.base_url,
+        "websocket_path": auth.websocket_path,
+        "provider": auth.provider,
+        "model": auth.model,
+        "account_id_present": bool(auth.account_id),
+        "header_keys": sorted(auth.headers().keys()),
+    }
+
+
 def build_exec_command(*, prompt: str, profile: str, cwd: Path | None = None, json_output: bool = True) -> list[str]:
     command = ["codex", "exec"]
     if profile:
