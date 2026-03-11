@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .app import run_chat
 from .baseline import compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command, describe_ws_runtime, render_codex_config_toml
 from .compare import compare_normalized_sequences
@@ -68,6 +69,14 @@ def build_parser() -> argparse.ArgumentParser:
     observe.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
     observe.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
     observe.add_argument("--example-id", help="Override promoted example id.")
+
+    chat = subparsers.add_parser("chat", help="Run the user-facing chat flow and print the final assistant answer.")
+    chat.add_argument("prompt", nargs="?", help="Prompt to send. If omitted, read from stdin.")
+    chat.add_argument("--profile", default="openai_ws", help="Codex profile name.")
+    chat.add_argument("--cwd", default=".", help="Working directory for codex exec.")
+    chat.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    chat.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    chat.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
     return parser
 
 
@@ -161,6 +170,36 @@ def main() -> int:
         matched = [item for item in outcome.comparison_results if item.matches]
         print(f"baseline_matches={len(matched)}/{len(outcome.comparison_results)}")
         return 0 if outcome.capture.normalized_path else outcome.capture.meta_path.exists()
+    if args.command == "chat":
+        prompt = args.prompt
+        if prompt is None:
+            import sys
+
+            prompt = sys.stdin.read().strip()
+        if not prompt:
+            print("prompt is required")
+            return 2
+        summary = run_chat(
+            prompt=prompt,
+            profile=args.profile,
+            cwd=Path(args.cwd),
+            captures_dir=Path(args.captures_dir),
+            promote_dir=Path(args.promote_dir),
+            baselines_dir=Path(args.baselines_dir),
+        )
+        if summary.final_message:
+            print(summary.final_message)
+        else:
+            print("No final assistant message was captured.")
+        print(f"[session] {summary.session_dir}")
+        if summary.normalized_path:
+            print(f"[normalized] {summary.normalized_path}")
+        if summary.promoted_example_dir:
+            print(f"[example] {summary.promoted_example_dir}")
+        if summary.comparison_summary_path:
+            print(f"[comparison] {summary.comparison_summary_path}")
+        print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+        return 0
 
     parser.print_help()
     return 0
