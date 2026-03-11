@@ -50,4 +50,4 @@ def test_run_chat_uses_roma_runtime_for_roma_profile(monkeypatch, tmp_path: Path
 
     assert summary.final_message == "hello from roma"
     assert summary.baseline_total == 1
-    assert summary.adaptive_notes == "Roma runtime bridge executed with strategy steering."
+    assert summary.adaptive_notes == "Attempt scores: [0]"

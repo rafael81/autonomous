@@ -5,13 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .adaptive import AdaptiveSummary, summarize_attempt_progress
 from .baseline import compare_capture_against_baselines
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory, load_session_memory
-from .orchestration import decide_orchestration, write_approval_artifact, write_request_user_input_artifact
+from .orchestration import (
+    build_retry_appendix,
+    decide_orchestration,
+    render_approval_response,
+    render_request_user_input_response,
+    write_approval_artifact,
+    write_request_user_input_artifact,
+)
 from .postprocess import codexify_message
-from .roma_runtime import run_roma_chat
-from .strategy import build_steered_prompt, choose_strategy
+from .roma_runtime import RomaAttemptResult, run_roma_chat
+from .strategy import build_steered_prompt, candidate_strategies, choose_strategy
 from .workflow import ObservationRunResult, observe_prompt
 
 
@@ -50,15 +58,49 @@ def run_chat(
     memory_turns = load_session_memory(memory_dir, session_id)
     memory_path = None
     if profile == "roma_ws":
-        strategy = choose_strategy(prompt)
-        result = run_roma_chat(
-            prompt=prompt,
-            history=memory_turns,
-            captures_dir=captures_dir,
-            cwd=cwd,
-            instructions=build_steered_prompt(prompt, strategy),
-            enable_tools=strategy.strategy_id == "tool_oriented",
-        )
+        attempts: list[RomaAttemptResult] = []
+        retry_appendix = ""
+        user_input_prefix = render_request_user_input_response(request_user_input_response_path)
+        approval_prefix = render_approval_response(approval_response_path)
+        for attempt_index, strategy in enumerate(candidate_strategies(prompt), start=1):
+            steered_prompt = approval_prefix + user_input_prefix + build_steered_prompt(prompt, strategy) + retry_appendix
+            result = run_roma_chat(
+                prompt=steered_prompt,
+                history=memory_turns,
+                captures_dir=captures_dir / f"attempt-{attempt_index}-{strategy.strategy_id}",
+                cwd=cwd,
+                instructions=build_steered_prompt(prompt, strategy),
+                enable_tools=strategy.strategy_id == "tool_oriented",
+            )
+            comparison_results = (
+                compare_capture_against_baselines(
+                    normalized_path=result.normalized_path,
+                    baselines_root=baselines_dir,
+                )
+                if baselines_dir.exists() and result.normalized_path.exists()
+                else []
+            )
+            orchestration = decide_orchestration(
+                strategy=strategy,
+                comparison_results=comparison_results,
+                has_normalized_output=result.normalized_path.exists(),
+                prompt=prompt,
+            )
+            attempts.append(
+                RomaAttemptResult(
+                    result=result,
+                    strategy=strategy,
+                    comparison_score=min((item.score for item in comparison_results), default=10_000),
+                    comparison_matches=len([item for item in comparison_results if item.matches]),
+                )
+            )
+            retry_appendix = build_retry_appendix(orchestration.retry_reason)
+            if any(item.matches for item in comparison_results):
+                break
+
+        best_attempt = min(attempts, key=lambda item: (item.comparison_matches == 0, item.comparison_score))
+        strategy = best_attempt.strategy
+        result = best_attempt.result
         final_message = codexify_message(result.final_message)
         comparison_results = (
             compare_capture_against_baselines(
@@ -73,6 +115,17 @@ def run_chat(
             comparison_results=comparison_results,
             has_normalized_output=result.normalized_path.exists(),
             prompt=prompt,
+        )
+        adaptive_summary: AdaptiveSummary = summarize_attempt_progress(
+            [
+                compare_capture_against_baselines(
+                    normalized_path=attempt.result.normalized_path,
+                    baselines_root=baselines_dir,
+                )
+                if baselines_dir.exists() and attempt.result.normalized_path.exists()
+                else []
+                for attempt in attempts
+            ]
         )
         request_user_input_path = None
         approval_request_path = None
@@ -90,7 +143,7 @@ def run_chat(
             final_message=final_message,
             strategy_id=strategy.strategy_id,
             baseline_example_id=strategy.baseline_example_id,
-            attempted_strategies=[strategy.strategy_id],
+            attempted_strategies=[attempt.strategy.strategy_id for attempt in attempts],
             orchestration_summary=orchestration.policy_summary,
             session_dir=result.session_dir,
             normalized_path=result.normalized_path,
@@ -99,7 +152,7 @@ def run_chat(
             baseline_total=len(comparison_results),
             comparison_summary_path=None,
             request_user_input_path=request_user_input_path,
-            adaptive_notes="Roma runtime bridge executed with strategy steering.",
+            adaptive_notes=adaptive_summary.notes,
             memory_path=memory_path,
             approval_request_path=approval_request_path,
         )

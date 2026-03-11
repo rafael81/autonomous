@@ -12,6 +12,7 @@ from pathlib import Path
 from .io import write_jsonl
 from .memory import MemoryTurn
 from .schema import build_event
+from .strategy import StrategyDecision
 
 
 DEFAULT_ROMA_ROOT = Path("/Users/user/project/Opus_Aggregator/roma-cli")
@@ -26,6 +27,14 @@ class RomaChatResult:
     stdout_path: Path
     stderr_path: Path
     meta_path: Path
+
+
+@dataclass(frozen=True)
+class RomaAttemptResult:
+    result: RomaChatResult
+    strategy: StrategyDecision
+    comparison_score: int
+    comparison_matches: int
 
 
 def run_roma_chat(
