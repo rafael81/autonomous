@@ -11,7 +11,7 @@ from .config import load_ws_auth_config
 from .examples import build_examples_dataset
 from .exec_normalizer import normalize_exec_events
 from .io import read_jsonl
-from .live_capture import run_capture
+from .live_capture import run_capture, save_capture_session
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,6 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     capture_live.add_argument("prompt", help="Prompt to send to codex exec.")
     capture_live.add_argument("--profile", default="openai_ws", help="Codex profile name.")
     capture_live.add_argument("--cwd", default=".", help="Working directory for codex exec.")
+    capture_live.add_argument("--output-dir", default="captures", help="Directory where live capture sessions will be stored.")
 
     compare = subparsers.add_parser("compare", help="Compare two normalized JSONL traces structurally.")
     compare.add_argument("expected", help="Expected normalized.jsonl path.")
@@ -72,14 +73,18 @@ def main() -> int:
     if args.command == "capture-live":
         command = build_exec_command(prompt=args.prompt, profile=args.profile, cwd=Path(args.cwd))
         result = run_capture(command, cwd=Path(args.cwd))
+        saved = save_capture_session(
+            result=result,
+            prompt=args.prompt,
+            output_root=Path(args.output_dir),
+        )
         print(f"command={' '.join(result.command)}")
         print(f"returncode={result.returncode}")
-        if result.stdout:
-            print("stdout:")
-            print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
-        if result.stderr:
-            print("stderr:")
-            print(result.stderr, end="" if result.stderr.endswith("\n") else "\n")
+        print(f"session_dir={saved.session_dir}")
+        if saved.raw_jsonl_path:
+            print(f"raw_jsonl={saved.raw_jsonl_path}")
+        if saved.normalized_path:
+            print(f"normalized_jsonl={saved.normalized_path}")
         return result.returncode
     if args.command == "compare":
         result = compare_normalized_sequences(read_jsonl(Path(args.expected)), read_jsonl(Path(args.actual)))
