@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .config import load_openai_api_key
 from .config import load_ws_auth_config
 from .config import WebSocketAuthConfig
 from .strategy import StrategyDecision
@@ -43,7 +44,8 @@ def build_provider_override_args(
     auth: WebSocketAuthConfig | None = None,
 ) -> list[str]:
     auth = auth or load_ws_auth_config()
-    base_url = auth.base_url.replace("wss://", "https://").replace("ws://", "http://")
+    api_key = load_openai_api_key()
+    base_url = "https://api.openai.com/v1"
     wire_api = "responses"
     args = [
         "-c",
@@ -57,13 +59,12 @@ def build_provider_override_args(
         "-c",
         f'model="{auth.model}"',
     ]
-    if auth.api_key:
-        args.extend(
-            [
-                "-c",
-                f'model_providers.{provider_name}.experimental_bearer_token="{auth.api_key}"',
-            ]
-        )
+    args.extend(
+        [
+            "-c",
+            f'model_providers.{provider_name}.experimental_bearer_token="{api_key}"',
+        ]
+    )
     return args
 
 

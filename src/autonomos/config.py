@@ -82,3 +82,11 @@ def load_ws_auth_config(env: dict[str, str] | None = None) -> WebSocketAuthConfi
         account_id=account_id,
         extra_headers=extra_headers,
     )
+
+
+def load_openai_api_key(env: dict[str, str] | None = None) -> str:
+    source = env if env is not None else os.environ
+    api_key = source.get("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is required for direct OpenAI API runtime")
+    return api_key

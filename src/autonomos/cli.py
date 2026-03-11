@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from .app import run_chat
@@ -126,221 +127,116 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-
-    if args.command == "version":
-        print("autonomos 0.1.0")
-        return 0
-    if args.command == "build-examples":
-        build_examples_dataset(Path(args.output_dir))
-        print(f"wrote examples to {args.output_dir}")
-        return 0
-    if args.command == "print-ws-config":
-        auth = load_ws_auth_config()
-        config_text = render_codex_config_toml(auth)
-        if args.output:
-            Path(args.output).write_text(config_text, encoding="utf-8")
-        print(config_text, end="" if config_text.endswith("\n") else "\n")
-        if args.describe_runtime:
-            print(describe_ws_runtime(auth))
-        return 0
-    if args.command == "capture-live":
-        command = build_exec_command(prompt=args.prompt, profile=args.profile, cwd=Path(args.cwd))
-        result = run_capture(command, cwd=Path(args.cwd))
-        saved = save_capture_session(
-            result=result,
-            prompt=args.prompt,
-            output_root=Path(args.output_dir),
-        )
-        print(f"command={' '.join(result.command)}")
-        print(f"returncode={result.returncode}")
-        print(f"session_dir={saved.session_dir}")
-        if saved.raw_jsonl_path:
-            print(f"raw_jsonl={saved.raw_jsonl_path}")
-        if saved.normalized_path:
-            print(f"normalized_jsonl={saved.normalized_path}")
-        return result.returncode
-    if args.command == "compare":
-        result = compare_normalized_sequences(read_jsonl(Path(args.expected)), read_jsonl(Path(args.actual)))
-        print(result.summary)
-        for detail in result.details:
-            print(detail)
-        return 0 if result.matches else 1
-    if args.command == "normalize-exec":
-        rows = read_jsonl(Path(args.input))
-        normalized = normalize_exec_events(rows)
-        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        from .io import write_jsonl
-        write_jsonl(Path(args.output), normalized)
-        print(f"normalized {len(rows)} raw events into {len(normalized)} events")
-        return 0
-    if args.command == "promote-capture":
-        example_dir = promote_capture_to_example(
-            capture_dir=Path(args.capture_dir),
-            output_root=Path(args.output_dir),
-            example_id=args.example_id,
-            prompt=args.prompt,
-        )
-        print(f"promoted capture to {example_dir}")
-        return 0
-    if args.command == "compare-baselines":
-        results = compare_capture_against_baselines(
-            normalized_path=Path(args.normalized),
-            baselines_root=Path(args.baselines_dir),
-        )
-        matched = [result for result in results if result.matches]
-        print(f"matched={len(matched)} total={len(results)}")
-        for result in results:
-            status = "MATCH" if result.matches else "DIFF"
-            print(f"{status} {result.example_id}: {result.summary}")
-        return 0 if matched else 1
-    if args.command == "observe":
-        outcome = observe_prompt(
-            prompt=args.prompt,
-            profile=args.profile,
-            cwd=Path(args.cwd),
-            captures_dir=Path(args.captures_dir),
-            promote_dir=Path(args.promote_dir),
-            baselines_dir=Path(args.baselines_dir),
-            example_id=args.example_id,
-        )
-        print(f"session_dir={outcome.capture.session_dir}")
-        if outcome.capture.normalized_path:
-            print(f"normalized_jsonl={outcome.capture.normalized_path}")
-        if outcome.promoted_example_dir:
-            print(f"promoted_example={outcome.promoted_example_dir}")
-        if outcome.summary_path:
-            print(f"comparison_summary={outcome.summary_path}")
-        matched = [item for item in outcome.comparison_results if item.matches]
-        print(f"baseline_matches={len(matched)}/{len(outcome.comparison_results)}")
-        return 0 if outcome.capture.normalized_path else outcome.capture.meta_path.exists()
-    if args.command == "answer-user-input":
-        response_path = write_request_user_input_response(
-            request_path=Path(args.request_file),
-            selected_option=args.selected_option,
-            notes=args.notes,
-        )
-        print(response_path)
-        return 0
-    if args.command == "answer-approval":
-        response_path = write_approval_response(
-            request_path=Path(args.request_file),
-            decision=args.decision,
-            notes=args.notes,
-        )
-        print(response_path)
-        return 0
-    if args.command == "chat":
-        prompt = args.prompt
-        if prompt is None:
-            import sys
-
-            prompt = sys.stdin.read().strip()
-        if not prompt:
-            print("prompt is required")
-            return 2
-        summary = run_chat(
-            prompt=prompt,
-            profile=args.profile,
-            cwd=Path(args.cwd),
-            captures_dir=Path(args.captures_dir),
-            promote_dir=Path(args.promote_dir),
-            baselines_dir=Path(args.baselines_dir),
-            memory_dir=Path(args.memory_dir),
-            session_id=args.session_id,
-            request_user_input_response_path=Path(args.request_user_input_response) if args.request_user_input_response else None,
-            approval_response_path=Path(args.approval_response_file) if hasattr(args, "approval_response_file") and args.approval_response_file else None,
-        )
-        if summary.final_message:
-            print(summary.final_message)
-        else:
-            print("No final assistant message was captured.")
-        print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
-        print(f"[attempts] {', '.join(summary.attempted_strategies)}")
-        print(f"[policy] {summary.orchestration_summary}")
-        print(f"[session] {summary.session_dir}")
-        if summary.normalized_path:
-            print(f"[normalized] {summary.normalized_path}")
-        if summary.promoted_example_dir:
-            print(f"[example] {summary.promoted_example_dir}")
-        if summary.comparison_summary_path:
-            print(f"[comparison] {summary.comparison_summary_path}")
-        if summary.request_user_input_path:
-            print(f"[request-user-input] {summary.request_user_input_path}")
-        if summary.approval_request_path:
-            print(f"[approval-request] {summary.approval_request_path}")
-        if summary.memory_path:
-            print(f"[memory] {summary.memory_path}")
-        print(f"[adaptive] {summary.adaptive_notes}")
-        print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
-        return 0
-    if args.command == "resume":
-        prompt = args.prompt
-        if prompt is None:
-            import sys
-
-            prompt = sys.stdin.read().strip()
-        if not prompt:
-            print("prompt is required")
-            return 2
-        summary = run_chat(
-            prompt=prompt,
-            profile=args.profile,
-            cwd=Path(args.cwd),
-            captures_dir=Path(args.captures_dir),
-            promote_dir=Path(args.promote_dir),
-            baselines_dir=Path(args.baselines_dir),
-            memory_dir=Path(args.memory_dir),
-            session_id=args.session_id,
-            request_user_input_response_path=Path(args.response_file),
-            approval_response_path=Path(args.approval_response_file) if args.approval_response_file else None,
-        )
-        if summary.final_message:
-            print(summary.final_message)
-        else:
-            print("No final assistant message was captured.")
-        print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
-        print(f"[attempts] {', '.join(summary.attempted_strategies)}")
-        print(f"[policy] {summary.orchestration_summary}")
-        print(f"[session] {summary.session_dir}")
-        if summary.request_user_input_path:
-            print(f"[request-user-input] {summary.request_user_input_path}")
-        if summary.approval_request_path:
-            print(f"[approval-request] {summary.approval_request_path}")
-        if summary.memory_path:
-            print(f"[memory] {summary.memory_path}")
-        print(f"[adaptive] {summary.adaptive_notes}")
-        print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
-        return 0
-    if args.command == "transcript":
-        rows = read_jsonl(Path(args.normalized))
-        for row in rows:
-            event_type = row.get("event_type")
-            payload = row.get("payload", {})
-            if event_type == "assistant_message":
-                print(f"assistant: {payload.get('text', '')}")
-            elif event_type == "user_input":
-                print(f"user: {payload.get('text', '')}")
-            elif event_type and "tool" in event_type:
-                print(f"{event_type}: {payload}")
-            else:
-                print(event_type)
-        return 0
-    if args.command == "sessions":
-        rows = list_sessions(Path(args.memory_dir))
-        for session_id, count in rows:
-            print(f"{session_id}\t{count}")
-        return 0
-    if args.command == "repl":
-        print("Autonomos REPL. Type /exit to quit.")
-        while True:
-            try:
-                prompt = input("> ").strip()
-            except EOFError:
-                break
+    try:
+        if args.command == "version":
+            print("autonomos 0.1.0")
+            return 0
+        if args.command == "build-examples":
+            build_examples_dataset(Path(args.output_dir))
+            print(f"wrote examples to {args.output_dir}")
+            return 0
+        if args.command == "print-ws-config":
+            auth = load_ws_auth_config()
+            config_text = render_codex_config_toml(auth)
+            if args.output:
+                Path(args.output).write_text(config_text, encoding="utf-8")
+            print(config_text, end="" if config_text.endswith("\n") else "\n")
+            if args.describe_runtime:
+                print(describe_ws_runtime(auth))
+            return 0
+        if args.command == "capture-live":
+            command = build_exec_command(prompt=args.prompt, profile=args.profile, cwd=Path(args.cwd))
+            result = run_capture(command, cwd=Path(args.cwd))
+            saved = save_capture_session(
+                result=result,
+                prompt=args.prompt,
+                output_root=Path(args.output_dir),
+            )
+            print(f"command={' '.join(result.command)}")
+            print(f"returncode={result.returncode}")
+            print(f"session_dir={saved.session_dir}")
+            if saved.raw_jsonl_path:
+                print(f"raw_jsonl={saved.raw_jsonl_path}")
+            if saved.normalized_path:
+                print(f"normalized_jsonl={saved.normalized_path}")
+            return result.returncode
+        if args.command == "compare":
+            result = compare_normalized_sequences(read_jsonl(Path(args.expected)), read_jsonl(Path(args.actual)))
+            print(result.summary)
+            for detail in result.details:
+                print(detail)
+            return 0 if result.matches else 1
+        if args.command == "normalize-exec":
+            rows = read_jsonl(Path(args.input))
+            normalized = normalize_exec_events(rows)
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            from .io import write_jsonl
+            write_jsonl(Path(args.output), normalized)
+            print(f"normalized {len(rows)} raw events into {len(normalized)} events")
+            return 0
+        if args.command == "promote-capture":
+            example_dir = promote_capture_to_example(
+                capture_dir=Path(args.capture_dir),
+                output_root=Path(args.output_dir),
+                example_id=args.example_id,
+                prompt=args.prompt,
+            )
+            print(f"promoted capture to {example_dir}")
+            return 0
+        if args.command == "compare-baselines":
+            results = compare_capture_against_baselines(
+                normalized_path=Path(args.normalized),
+                baselines_root=Path(args.baselines_dir),
+            )
+            matched = [result for result in results if result.matches]
+            print(f"matched={len(matched)} total={len(results)}")
+            for result in results:
+                status = "MATCH" if result.matches else "DIFF"
+                print(f"{status} {result.example_id}: {result.summary}")
+            return 0 if matched else 1
+        if args.command == "observe":
+            outcome = observe_prompt(
+                prompt=args.prompt,
+                profile=args.profile,
+                cwd=Path(args.cwd),
+                captures_dir=Path(args.captures_dir),
+                promote_dir=Path(args.promote_dir),
+                baselines_dir=Path(args.baselines_dir),
+                example_id=args.example_id,
+            )
+            print(f"session_dir={outcome.capture.session_dir}")
+            if outcome.capture.normalized_path:
+                print(f"normalized_jsonl={outcome.capture.normalized_path}")
+            if outcome.promoted_example_dir:
+                print(f"promoted_example={outcome.promoted_example_dir}")
+            if outcome.summary_path:
+                print(f"comparison_summary={outcome.summary_path}")
+            matched = [item for item in outcome.comparison_results if item.matches]
+            print(f"baseline_matches={len(matched)}/{len(outcome.comparison_results)}")
+            return 0 if outcome.capture.normalized_path else outcome.capture.meta_path.exists()
+        if args.command == "answer-user-input":
+            response_path = write_request_user_input_response(
+                request_path=Path(args.request_file),
+                selected_option=args.selected_option,
+                notes=args.notes,
+            )
+            print(response_path)
+            return 0
+        if args.command == "answer-approval":
+            response_path = write_approval_response(
+                request_path=Path(args.request_file),
+                decision=args.decision,
+                notes=args.notes,
+            )
+            print(response_path)
+            return 0
+        if args.command == "chat":
+            prompt = args.prompt
+            if prompt is None:
+                prompt = sys.stdin.read().strip()
             if not prompt:
-                continue
-            if prompt in {"/exit", "/quit"}:
-                break
+                print("prompt is required")
+                return 2
             summary = run_chat(
                 prompt=prompt,
                 profile=args.profile,
@@ -350,22 +246,126 @@ def main() -> int:
                 baselines_dir=Path(args.baselines_dir),
                 memory_dir=Path(args.memory_dir),
                 session_id=args.session_id,
+                request_user_input_response_path=Path(args.request_user_input_response) if args.request_user_input_response else None,
+                approval_response_path=Path(args.approval_response_file) if hasattr(args, "approval_response_file") and args.approval_response_file else None,
             )
             if summary.final_message:
                 print(summary.final_message)
             else:
                 print("No final assistant message was captured.")
             print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+            print(f"[attempts] {', '.join(summary.attempted_strategies)}")
             print(f"[policy] {summary.orchestration_summary}")
-            if summary.approval_request_path:
-                approval = _handle_inline_approval(summary.approval_request_path)
-                if approval:
-                    print(f"[approval] {approval}")
+            print(f"[session] {summary.session_dir}")
+            if summary.normalized_path:
+                print(f"[normalized] {summary.normalized_path}")
+            if summary.promoted_example_dir:
+                print(f"[example] {summary.promoted_example_dir}")
+            if summary.comparison_summary_path:
+                print(f"[comparison] {summary.comparison_summary_path}")
             if summary.request_user_input_path:
-                response = _handle_inline_request_user_input(summary.request_user_input_path)
-                if response:
-                    print(f"[request-user-input] {response}")
-        return 0
+                print(f"[request-user-input] {summary.request_user_input_path}")
+            if summary.approval_request_path:
+                print(f"[approval-request] {summary.approval_request_path}")
+            if summary.memory_path:
+                print(f"[memory] {summary.memory_path}")
+            print(f"[adaptive] {summary.adaptive_notes}")
+            print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+            return 0
+        if args.command == "resume":
+            prompt = args.prompt
+            if prompt is None:
+                prompt = sys.stdin.read().strip()
+            if not prompt:
+                print("prompt is required")
+                return 2
+            summary = run_chat(
+                prompt=prompt,
+                profile=args.profile,
+                cwd=Path(args.cwd),
+                captures_dir=Path(args.captures_dir),
+                promote_dir=Path(args.promote_dir),
+                baselines_dir=Path(args.baselines_dir),
+                memory_dir=Path(args.memory_dir),
+                session_id=args.session_id,
+                request_user_input_response_path=Path(args.response_file),
+                approval_response_path=Path(args.approval_response_file) if args.approval_response_file else None,
+            )
+            if summary.final_message:
+                print(summary.final_message)
+            else:
+                print("No final assistant message was captured.")
+            print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+            print(f"[attempts] {', '.join(summary.attempted_strategies)}")
+            print(f"[policy] {summary.orchestration_summary}")
+            print(f"[session] {summary.session_dir}")
+            if summary.request_user_input_path:
+                print(f"[request-user-input] {summary.request_user_input_path}")
+            if summary.approval_request_path:
+                print(f"[approval-request] {summary.approval_request_path}")
+            if summary.memory_path:
+                print(f"[memory] {summary.memory_path}")
+            print(f"[adaptive] {summary.adaptive_notes}")
+            print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+            return 0
+        if args.command == "transcript":
+            rows = read_jsonl(Path(args.normalized))
+            for row in rows:
+                event_type = row.get("event_type")
+                payload = row.get("payload", {})
+                if event_type == "assistant_message":
+                    print(f"assistant: {payload.get('text', '')}")
+                elif event_type == "user_input":
+                    print(f"user: {payload.get('text', '')}")
+                elif event_type and "tool" in event_type:
+                    print(f"{event_type}: {payload}")
+                else:
+                    print(event_type)
+            return 0
+        if args.command == "sessions":
+            rows = list_sessions(Path(args.memory_dir))
+            for session_id, count in rows:
+                print(f"{session_id}\t{count}")
+            return 0
+        if args.command == "repl":
+            print("Autonomos REPL. Type /exit to quit.")
+            while True:
+                try:
+                    prompt = input("> ").strip()
+                except EOFError:
+                    break
+                if not prompt:
+                    continue
+                if prompt in {"/exit", "/quit"}:
+                    break
+                summary = run_chat(
+                    prompt=prompt,
+                    profile=args.profile,
+                    cwd=Path(args.cwd),
+                    captures_dir=Path(args.captures_dir),
+                    promote_dir=Path(args.promote_dir),
+                    baselines_dir=Path(args.baselines_dir),
+                    memory_dir=Path(args.memory_dir),
+                    session_id=args.session_id,
+                )
+                if summary.final_message:
+                    print(summary.final_message)
+                else:
+                    print("No final assistant message was captured.")
+                print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+                print(f"[policy] {summary.orchestration_summary}")
+                if summary.approval_request_path:
+                    approval = _handle_inline_approval(summary.approval_request_path)
+                    if approval:
+                        print(f"[approval] {approval}")
+                if summary.request_user_input_path:
+                    response = _handle_inline_request_user_input(summary.request_user_input_path)
+                    if response:
+                        print(f"[request-user-input] {response}")
+            return 0
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
 
     parser.print_help()
     return 0

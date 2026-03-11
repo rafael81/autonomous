@@ -1,7 +1,7 @@
 import json
 
 from autonomos.codex_exec import build_exec_command, describe_ws_runtime, render_codex_config_toml
-from autonomos.config import load_codex_auth_file, load_ws_auth_config
+from autonomos.config import load_codex_auth_file, load_openai_api_key, load_ws_auth_config
 from autonomos.strategy import choose_strategy
 
 
@@ -79,3 +79,12 @@ def test_chatgpt_runtime_headers_match_roma_style():
     assert "Authorization" in runtime["header_keys"]
     assert "chatgpt-account-id" in runtime["header_keys"]
     assert "openai-beta" in runtime["header_keys"]
+
+
+def test_load_openai_api_key_requires_env():
+    try:
+        load_openai_api_key({})
+    except ValueError as exc:
+        assert "OPENAI_API_KEY" in str(exc)
+    else:
+        raise AssertionError("expected ValueError when OPENAI_API_KEY is missing")
