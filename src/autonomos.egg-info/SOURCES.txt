@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+src/autonomos/__init__.py
+src/autonomos/cli.py
+src/autonomos/schema.py
+src/autonomos.egg-info/PKG-INFO
+src/autonomos.egg-info/SOURCES.txt
+src/autonomos.egg-info/dependency_links.txt
+src/autonomos.egg-info/entry_points.txt
+src/autonomos.egg-info/requires.txt
+src/autonomos.egg-info/top_level.txt
+tests/test_schema.py
