@@ -111,33 +111,6 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             fallback_tool="bash",
         )
     return DEFAULT_POLICY
-
-
-def render_policy_guidance(policy: PromptPolicy) -> str:
-    guidance = (
-        "General orchestration policy:\n"
-        f"- prompt_mode: {policy.prompt_mode}\n"
-        f"- tool_budget: {policy.tool_budget}\n"
-        f"- max_repeated_tool_calls: {policy.max_repeated_tool_calls}\n"
-        f"- preferred_roots: {', '.join(policy.preferred_roots)}\n"
-        f"- excluded_roots: {', '.join(policy.excluded_roots)}\n"
-        f"- stop_after_evidence: {policy.stop_after_evidence}\n"
-        f"- preferred_tools: {', '.join(policy.preferred_tools)}\n"
-        f"- fallback_tool: {policy.fallback_tool}\n"
-        "- Start from higher-value evidence before broad exploration.\n"
-        "- Stop once the available evidence is enough to answer reliably.\n"
-        "- Avoid scanning generated or cached directories unless the user explicitly asks for them.\n"
-    )
-    if policy.prompt_mode == "project_analysis":
-        guidance += (
-            "- Use a staged analysis flow: quick repository scan, read key config/docs, inspect main runtime modules, then validate with tests if possible.\n"
-            "- Prefer a short progress note before deep inspection and another note before validation.\n"
-            "- Final output should summarize architecture, runtime flow, strengths, and concrete risks.\n"
-            "- If `python` is unavailable, retry validation with `python3 -m pytest -q`.\n"
-        )
-    return guidance
-
-
 def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, str]:
     policy = infer_prompt_policy(prompt, getattr(attempt, "strategy", None))
     rows = read_jsonl(attempt.result.normalized_path) if attempt.result.normalized_path.exists() else []

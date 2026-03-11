@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .adaptive import AdaptiveSummary, summarize_attempt_progress
 from .baseline import compare_capture_against_baselines, promote_capture_to_example
+from .instructions import build_full_instructions, render_user_request
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory, load_session_memory, render_memory_context
 from .orchestration import (
@@ -17,12 +18,12 @@ from .orchestration import (
     write_approval_artifact,
     write_request_user_input_artifact,
 )
-from .policy import infer_prompt_policy, is_empty_runtime_fallback, rank_roma_attempt, render_policy_guidance
+from .policy import infer_prompt_policy, is_empty_runtime_fallback, rank_roma_attempt
 from .postprocess import codexify_message
 from .project_analysis import build_project_analysis_context
 from .reports import build_report
 from .roma_runtime import RomaAttemptResult, run_roma_chat
-from .strategy import build_steered_prompt, candidate_strategies, choose_strategy
+from .strategy import candidate_strategies
 from .workflow import ObservationRunResult, observe_prompt, slugify_prompt
 
 
@@ -71,15 +72,13 @@ def run_chat(
             policy = infer_prompt_policy(prompt, strategy)
             if policy.prompt_mode == "project_analysis" and not analysis_prefix:
                 analysis_prefix = build_project_analysis_context(cwd)
-            policy_guidance = render_policy_guidance(policy)
+            instructions = build_full_instructions(strategy, policy)
             steered_prompt = (
                 memory_prefix
                 + approval_prefix
                 + user_input_prefix
                 + analysis_prefix
-                + policy_guidance
-                + "\n"
-                + build_steered_prompt(prompt, strategy)
+                + render_user_request(prompt)
                 + retry_appendix
             )
             result = run_roma_chat(
@@ -87,7 +86,7 @@ def run_chat(
                 history=memory_turns,
                 captures_dir=captures_dir / f"attempt-{attempt_index}-{strategy.strategy_id}",
                 cwd=cwd,
-                instructions=memory_prefix + analysis_prefix + policy_guidance + "\n" + build_steered_prompt(prompt, strategy),
+                instructions=memory_prefix + analysis_prefix + instructions,
                 enable_tools=strategy.strategy_id == "tool_oriented",
                 policy=policy,
             )

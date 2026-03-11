@@ -10,6 +10,7 @@ from pathlib import Path
 from .adaptive import AdaptiveSummary, summarize_attempt_progress
 from .baseline import BaselineComparison, compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command
+from .instructions import build_full_instructions, render_user_request
 from .live_capture import LiveCaptureResult, SavedCapturePaths, run_capture, save_capture_session
 from .memory import MemoryTurn, render_memory_context
 from .orchestration import (
@@ -21,8 +22,8 @@ from .orchestration import (
     write_approval_artifact,
     write_request_user_input_artifact,
 )
-from .policy import infer_prompt_policy, render_policy_guidance
-from .strategy import StrategyDecision, build_steered_prompt, candidate_strategies
+from .policy import infer_prompt_policy
+from .strategy import StrategyDecision, candidate_strategies
 
 
 @dataclass(frozen=True)
@@ -68,14 +69,15 @@ def observe_prompt(
     user_input_prefix = render_request_user_input_response(request_user_input_response_path)
     approval_prefix = render_approval_response(approval_response_path)
     for attempt_index, strategy in enumerate(strategies, start=1):
-        policy_guidance = render_policy_guidance(infer_prompt_policy(prompt, strategy))
+        policy = infer_prompt_policy(prompt, strategy)
+        instructions = build_full_instructions(strategy, policy)
         steered_prompt = (
             memory_prefix
             + approval_prefix
             + user_input_prefix
-            + policy_guidance
-            + "\n"
-            + build_steered_prompt(prompt, strategy)
+            + instructions
+            + "\n\n"
+            + render_user_request(prompt)
             + retry_appendix
         )
         command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd, strategy=strategy)

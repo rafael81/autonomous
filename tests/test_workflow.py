@@ -23,7 +23,7 @@ def test_observe_prompt_runs_end_to_end(tmp_path: Path):
 
     def fake_runner(command: list[str], *, cwd: Path | None = None) -> LiveCaptureResult:
         prompt_text = command[-1]
-        if "Preferred interaction archetype: simple_answer" in prompt_text:
+        if "Current mode: simple_answer." in prompt_text:
             stdout = '{"timestamp":"2026-03-11T00:00:00Z","type":"thread.started","thread_id":"thread-1"}\n'
         else:
             stdout = (
@@ -74,7 +74,7 @@ def test_observe_prompt_can_fallback_to_second_strategy(tmp_path: Path):
 
     def fake_runner(command: list[str], *, cwd: Path | None = None) -> LiveCaptureResult:
         prompt_text = command[-1]
-        if "Preferred interaction archetype: planning" in prompt_text:
+        if "Current mode: planning." in prompt_text:
             stdout = '{"timestamp":"2026-03-11T00:00:00Z","type":"thread.started","thread_id":"thread-1"}\n'
         else:
             stdout = (

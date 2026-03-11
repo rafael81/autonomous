@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from autonomos.io import write_jsonl
-from autonomos.policy import infer_prompt_policy, rank_roma_attempt, render_policy_guidance
+from autonomos.policy import infer_prompt_policy, rank_roma_attempt
 from autonomos.roma_runtime import RomaAttemptResult, RomaChatResult
 from autonomos.strategy import choose_strategy
 
@@ -21,16 +21,6 @@ def test_infer_prompt_policy_for_project_analysis():
     assert policy.prompt_mode == "project_analysis"
     assert policy.tool_budget == 10
     assert policy.preferred_tools[0] == "bash"
-
-
-def test_render_policy_guidance_includes_budget_and_roots():
-    policy = infer_prompt_policy("Check the repository structure.")
-
-    text = render_policy_guidance(policy)
-
-    assert "tool_budget" in text
-    assert "preferred_roots" in text
-    assert "excluded_roots" in text
 
 
 def test_rank_roma_attempt_penalizes_empty_runtime_fallback(tmp_path: Path):

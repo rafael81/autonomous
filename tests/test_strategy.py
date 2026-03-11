@@ -1,4 +1,6 @@
-from autonomos.strategy import build_steered_prompt, candidate_strategies, choose_strategy
+from autonomos.instructions import build_full_instructions, render_user_request
+from autonomos.policy import infer_prompt_policy
+from autonomos.strategy import candidate_strategies, choose_strategy
 
 
 def test_choose_strategy_selects_planning():
@@ -22,13 +24,15 @@ def test_choose_strategy_selects_tool_oriented_for_korean_structure_analysis():
     assert decision.strategy_id == "tool_oriented"
 
 
-def test_build_steered_prompt_embeds_guidance():
+def test_instruction_builders_embed_mode_and_request():
     decision = choose_strategy("Say hello briefly.")
-    text = build_steered_prompt("Say hello briefly.", decision)
+    policy = infer_prompt_policy("Say hello briefly.", decision)
+    instructions = build_full_instructions(decision, policy)
+    request = render_user_request("Say hello briefly.")
 
-    assert "Preferred interaction archetype" in text
-    assert "User request:" in text
-    assert "Say hello briefly." in text
+    assert "Current mode: simple_answer." in instructions
+    assert "concise, direct, friendly teammate tone" in instructions
+    assert request.endswith("Say hello briefly.")
 
 
 def test_candidate_strategies_returns_primary_then_fallbacks():
