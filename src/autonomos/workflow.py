@@ -10,7 +10,12 @@ from pathlib import Path
 from .baseline import BaselineComparison, compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command
 from .live_capture import LiveCaptureResult, SavedCapturePaths, run_capture, save_capture_session
-from .orchestration import OrchestrationDecision, decide_orchestration
+from .orchestration import (
+    OrchestrationDecision,
+    build_retry_appendix,
+    decide_orchestration,
+    write_request_user_input_artifact,
+)
 from .strategy import StrategyDecision, build_steered_prompt, candidate_strategies
 
 
@@ -23,6 +28,7 @@ class ObservationRunResult:
     strategy: StrategyDecision
     attempted_strategies: list[str]
     orchestration: OrchestrationDecision
+    request_user_input_path: Path | None
 
 
 @dataclass(frozen=True)
@@ -46,8 +52,9 @@ def observe_prompt(
 ) -> ObservationRunResult:
     attempts: list[AttemptResult] = []
     strategies = candidate_strategies(prompt)
+    retry_appendix = ""
     for attempt_index, strategy in enumerate(strategies, start=1):
-        steered_prompt = build_steered_prompt(prompt, strategy)
+        steered_prompt = build_steered_prompt(prompt, strategy) + retry_appendix
         command = build_exec_command(prompt=steered_prompt, profile=profile, cwd=cwd, strategy=strategy)
         result: LiveCaptureResult = runner(command, cwd=cwd)
         saved = save_capture_session(
@@ -75,6 +82,7 @@ def observe_prompt(
                 orchestration=orchestration,
             )
         )
+        retry_appendix = build_retry_appendix(orchestration.retry_reason)
         if any(item.matches for item in comparison_results):
             break
 
@@ -83,6 +91,9 @@ def observe_prompt(
     saved = best_attempt.capture
     comparison_results = best_attempt.comparison_results
     orchestration = best_attempt.orchestration
+    request_user_input_path: Path | None = None
+    if orchestration.should_request_user_input:
+        request_user_input_path = write_request_user_input_artifact(session_dir=saved.session_dir, prompt=prompt)
 
     promoted_example_dir: Path | None = None
     if promote_dir and saved.normalized_path:
@@ -117,6 +128,7 @@ def observe_prompt(
         strategy=strategy,
         attempted_strategies=[attempt.strategy.strategy_id for attempt in attempts],
         orchestration=orchestration,
+        request_user_input_path=request_user_input_path,
     )
 
 

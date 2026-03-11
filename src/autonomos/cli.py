@@ -201,6 +201,8 @@ def main() -> int:
             print(f"[example] {summary.promoted_example_dir}")
         if summary.comparison_summary_path:
             print(f"[comparison] {summary.comparison_summary_path}")
+        if summary.request_user_input_path:
+            print(f"[request-user-input] {summary.request_user_input_path}")
         print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
         return 0
 

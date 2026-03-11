@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from .baseline import BaselineComparison
 from .strategy import StrategyDecision
@@ -15,6 +17,38 @@ class OrchestrationDecision:
     should_retry: bool
     retry_reason: str | None
     policy_summary: str
+
+
+def write_request_user_input_artifact(*, session_dir: Path, prompt: str) -> Path:
+    payload = {
+        "questions": [
+            {
+                "id": "direction",
+                "header": "Direction",
+                "question": "Which direction should the run prioritize?",
+                "options": [
+                    {"label": "Speed", "description": "Prefer the fastest path to an answer."},
+                    {"label": "Accuracy", "description": "Prefer extra checking and evidence."},
+                    {"label": "Conservative", "description": "Avoid risky tool use and keep the answer narrow."},
+                ],
+            }
+        ],
+        "prompt": prompt,
+    }
+    path = session_dir / "request-user-input.json"
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
+
+
+def build_retry_appendix(retry_reason: str | None) -> str:
+    if not retry_reason:
+        return ""
+    return (
+        "\n\nRetry guidance:\n"
+        f"- Previous attempt issue: {retry_reason}\n"
+        "- On this retry, reduce unnecessary divergence from the baseline event structure.\n"
+        "- Prefer the smallest tool footprint that can still answer correctly.\n"
+    )
 
 
 def decide_orchestration(

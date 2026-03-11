@@ -22,6 +22,7 @@ class ChatRunSummary:
     baseline_matches: int
     baseline_total: int
     comparison_summary_path: Path | None
+    request_user_input_path: Path | None
 
 
 def run_chat(
@@ -55,6 +56,7 @@ def run_chat(
         baseline_matches=baseline_matches,
         baseline_total=len(outcome.comparison_results),
         comparison_summary_path=outcome.summary_path,
+        request_user_input_path=outcome.request_user_input_path,
     )
 
 
