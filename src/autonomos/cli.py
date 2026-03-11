@@ -14,6 +14,7 @@ from .examples import build_examples_dataset
 from .exec_normalizer import normalize_exec_events
 from .io import read_jsonl
 from .live_capture import run_capture, save_capture_session
+from .orchestration import write_request_user_input_response
 from .workflow import observe_prompt
 
 
@@ -79,6 +80,23 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
     chat.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     chat.add_argument("--session-id", default="default", help="Logical chat session id.")
+    chat.add_argument("--request-user-input-response", help="Optional request-user-input response JSON to include on this turn.")
+
+    answer_rui = subparsers.add_parser("answer-user-input", help="Write a response file for a request-user-input artifact.")
+    answer_rui.add_argument("request_file", help="Path to request-user-input.json")
+    answer_rui.add_argument("selected_option", help="Chosen option label.")
+    answer_rui.add_argument("--notes", default="", help="Optional notes.")
+
+    resume = subparsers.add_parser("resume", help="Resume a run using a request-user-input response artifact.")
+    resume.add_argument("prompt", nargs="?", help="Prompt to send. If omitted, read from stdin.")
+    resume.add_argument("--response-file", required=True, help="Path to request-user-input-response.json")
+    resume.add_argument("--profile", default="openai_ws", help="Codex profile name.")
+    resume.add_argument("--cwd", default=".", help="Working directory for codex exec.")
+    resume.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    resume.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    resume.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    resume.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    resume.add_argument("--session-id", default="default", help="Logical chat session id.")
     return parser
 
 
@@ -172,6 +190,14 @@ def main() -> int:
         matched = [item for item in outcome.comparison_results if item.matches]
         print(f"baseline_matches={len(matched)}/{len(outcome.comparison_results)}")
         return 0 if outcome.capture.normalized_path else outcome.capture.meta_path.exists()
+    if args.command == "answer-user-input":
+        response_path = write_request_user_input_response(
+            request_path=Path(args.request_file),
+            selected_option=args.selected_option,
+            notes=args.notes,
+        )
+        print(response_path)
+        return 0
     if args.command == "chat":
         prompt = args.prompt
         if prompt is None:
@@ -190,6 +216,7 @@ def main() -> int:
             baselines_dir=Path(args.baselines_dir),
             memory_dir=Path(args.memory_dir),
             session_id=args.session_id,
+            request_user_input_response_path=Path(args.request_user_input_response) if args.request_user_input_response else None,
         )
         if summary.final_message:
             print(summary.final_message)
@@ -205,6 +232,41 @@ def main() -> int:
             print(f"[example] {summary.promoted_example_dir}")
         if summary.comparison_summary_path:
             print(f"[comparison] {summary.comparison_summary_path}")
+        if summary.request_user_input_path:
+            print(f"[request-user-input] {summary.request_user_input_path}")
+        if summary.memory_path:
+            print(f"[memory] {summary.memory_path}")
+        print(f"[adaptive] {summary.adaptive_notes}")
+        print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+        return 0
+    if args.command == "resume":
+        prompt = args.prompt
+        if prompt is None:
+            import sys
+
+            prompt = sys.stdin.read().strip()
+        if not prompt:
+            print("prompt is required")
+            return 2
+        summary = run_chat(
+            prompt=prompt,
+            profile=args.profile,
+            cwd=Path(args.cwd),
+            captures_dir=Path(args.captures_dir),
+            promote_dir=Path(args.promote_dir),
+            baselines_dir=Path(args.baselines_dir),
+            memory_dir=Path(args.memory_dir),
+            session_id=args.session_id,
+            request_user_input_response_path=Path(args.response_file),
+        )
+        if summary.final_message:
+            print(summary.final_message)
+        else:
+            print("No final assistant message was captured.")
+        print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+        print(f"[attempts] {', '.join(summary.attempted_strategies)}")
+        print(f"[policy] {summary.orchestration_summary}")
+        print(f"[session] {summary.session_dir}")
         if summary.request_user_input_path:
             print(f"[request-user-input] {summary.request_user_input_path}")
         if summary.memory_path:

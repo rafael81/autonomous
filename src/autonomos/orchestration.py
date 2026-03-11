@@ -40,6 +40,43 @@ def write_request_user_input_artifact(*, session_dir: Path, prompt: str) -> Path
     return path
 
 
+def write_request_user_input_response(
+    *,
+    request_path: Path,
+    selected_option: str,
+    notes: str = "",
+) -> Path:
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    response = {
+        "request_path": str(request_path),
+        "answers": [
+            {
+                "question_id": request["questions"][0]["id"],
+                "selected_option": selected_option,
+                "notes": notes,
+            }
+        ],
+    }
+    response_path = request_path.with_name("request-user-input-response.json")
+    response_path.write_text(json.dumps(response, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return response_path
+
+
+def render_request_user_input_response(response_path: Path | None) -> str:
+    if response_path is None or not response_path.exists():
+        return ""
+    payload = json.loads(response_path.read_text(encoding="utf-8"))
+    answers = payload.get("answers", [])
+    if not answers:
+        return ""
+    rendered = ["User input answers:"]
+    for answer in answers:
+        rendered.append(
+            f"- {answer.get('question_id')}: option={answer.get('selected_option')} notes={answer.get('notes', '')}".rstrip()
+        )
+    return "\n".join(rendered) + "\n\n"
+
+
 def build_retry_appendix(retry_reason: str | None) -> str:
     if not retry_reason:
         return ""
