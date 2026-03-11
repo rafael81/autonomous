@@ -54,4 +54,4 @@ def list_sessions(memory_root: Path) -> list[tuple[str, int, str | None]]:
         count = len(rows)
         last_ts = rows[-1].get("ts") if rows else None
         sessions.append((path.stem, count, last_ts))
-    return sessions
+    return sorted(sessions, key=lambda item: (item[2] is None, item[2] or "", item[0]), reverse=True)

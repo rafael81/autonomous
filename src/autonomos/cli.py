@@ -109,9 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     transcript = subparsers.add_parser("transcript", help="Print a compact transcript from a normalized session trace.")
     transcript.add_argument("normalized", help="Path to normalized.jsonl")
+    transcript.add_argument("--show-deltas", action="store_true", help="Show assistant delta events instead of collapsing them.")
 
     sessions = subparsers.add_parser("sessions", help="List saved local chat sessions.")
     sessions.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    sessions.add_argument("--latest", action="store_true", help="Print only the most recently active session id.")
 
     repl = subparsers.add_parser("repl", help="Run a simple interactive chat loop.")
     repl.add_argument("--profile", default="openai_ws", help="Codex profile name.")
@@ -309,30 +311,17 @@ def main() -> int:
             print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
             return 0
         if args.command == "transcript":
-            rows = read_jsonl(Path(args.normalized))
-            for row in rows:
-                event_type = row.get("event_type")
-                payload = row.get("payload", {})
-                if event_type == "assistant_message":
-                    print(f"assistant> {payload.get('text', '')}")
-                elif event_type == "user_input":
-                    print(f"user> {payload.get('text', '')}")
-                elif event_type and "tool" in event_type:
-                    tool_name = payload.get("tool_name", "unknown")
-                    if event_type == "tool_call_request":
-                        print(f"tool> request {tool_name} {payload.get('args', {})}")
-                    elif event_type == "tool_call_result":
-                        output = str(payload.get("output", ""))
-                        print(f"tool> result {tool_name} {output[:160]}")
-                    else:
-                        print(f"tool> {event_type} {payload}")
-                else:
-                    print(f"event> {event_type}")
+            _print_transcript(read_jsonl(Path(args.normalized)), show_deltas=args.show_deltas)
             return 0
         if args.command == "sessions":
             rows = list_sessions(Path(args.memory_dir))
-            for session_id, count, last_ts in rows:
-                print(f"{session_id}\t{count}\t{last_ts or '-'}")
+            if args.latest:
+                if rows:
+                    print(rows[0][0])
+                return 0
+            for index, (session_id, count, last_ts) in enumerate(rows):
+                marker = "*" if index == 0 else " "
+                print(f"{marker}\t{session_id}\t{count}\t{last_ts or '-'}")
             return 0
         if args.command == "repl":
             print("Autonomos REPL. Type /exit to quit.")
@@ -467,3 +456,38 @@ def _handle_repl_follow_up(
         request_user_input_response_path=user_input_response,
         approval_response_path=approval_response,
     )
+
+
+def _print_transcript(rows: list[dict], *, show_deltas: bool) -> None:
+    pending_delta = None
+    final_message = None
+    for row in rows:
+        event_type = row.get("event_type")
+        payload = row.get("payload", {})
+        if event_type == "assistant_message_delta" and not show_deltas:
+            pending_delta = payload.get("text", "")
+            continue
+        if event_type == "assistant_message":
+            if pending_delta and pending_delta != payload.get("text", ""):
+                print(f"assistant~ {pending_delta}")
+            text = payload.get("text", "")
+            print(f"assistant> {text}")
+            final_message = text
+            pending_delta = None
+        elif event_type == "assistant_message_delta":
+            print(f"assistant~ {payload.get('text', '')}")
+        elif event_type == "user_input":
+            print(f"user> {payload.get('text', '')}")
+        elif event_type and "tool" in event_type:
+            tool_name = payload.get("tool_name", "unknown")
+            if event_type == "tool_call_request":
+                print(f"tool> request {tool_name} {payload.get('args', {})}")
+            elif event_type == "tool_call_result":
+                output = str(payload.get("output", ""))
+                print(f"tool> result {tool_name} {output[:160]}")
+            else:
+                print(f"tool> {event_type} {payload}")
+        else:
+            print(f"event> {event_type}")
+    if final_message:
+        print(f"final> {final_message}")
