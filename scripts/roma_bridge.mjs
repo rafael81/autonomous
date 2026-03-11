@@ -190,6 +190,64 @@ async function grepTextTool(args = {}) {
   return results.length > 0 ? results.join('\n') : '(no matches)';
 }
 
+async function globPathsTool(args = {}) {
+  const pattern = typeof args.pattern === 'string' ? args.pattern.trim() : '';
+  if (!pattern) {
+    return 'Error: pattern is required.';
+  }
+  const root = resolveToolPath(args.path || '.');
+  const maxResults = Number.isFinite(args.max_results) ? Math.max(1, Math.min(200, Number(args.max_results))) : 100;
+  const relativePattern = path.isAbsolute(pattern) ? path.relative(root, pattern) : pattern;
+  const normalizedPattern = relativePattern.replace(/\\/g, '/');
+  const segments = normalizedPattern.split('/').filter(Boolean);
+  const matches = [];
+
+  const wildcardToRegExp = (segment) =>
+    new RegExp(
+      '^' + segment
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.') + '$'
+    );
+
+  const walk = (currentDir, index, relativeBase = '') => {
+    if (matches.length >= maxResults) return;
+    if (index >= segments.length) {
+      if (relativeBase) matches.push(relativeBase);
+      return;
+    }
+    const segment = segments[index];
+    if (segment === '**') {
+      walk(currentDir, index + 1, relativeBase);
+      for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.venv') continue;
+        const nextBase = relativeBase ? `${relativeBase}/${entry.name}` : entry.name;
+        walk(path.join(currentDir, entry.name), index, nextBase);
+        if (matches.length >= maxResults) return;
+      }
+      return;
+    }
+
+    const matcher = wildcardToRegExp(segment);
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.venv') continue;
+      if (!matcher.test(entry.name)) continue;
+      const nextBase = relativeBase ? `${relativeBase}/${entry.name}` : entry.name;
+      const nextPath = path.join(currentDir, entry.name);
+      if (index === segments.length - 1) {
+        matches.push(nextBase);
+      } else if (entry.isDirectory()) {
+        walk(nextPath, index + 1, nextBase);
+      }
+      if (matches.length >= maxResults) return;
+    }
+  };
+
+  walk(root, 0);
+  return matches.length > 0 ? matches.join('\n') : '(no matches)';
+}
+
 const toolSpecs = enableTools
   ? [
       {
@@ -249,6 +307,20 @@ const toolSpecs = enableTools
       },
       {
         type: 'function',
+        name: 'glob_paths',
+        description: 'Match workspace paths using glob patterns like *.py or src/**/test_*.py.',
+        parameters: {
+          type: 'object',
+          required: ['pattern'],
+          properties: {
+            pattern: { type: 'string', description: 'Glob pattern relative to the workspace or provided path.' },
+            path: { type: 'string', description: 'Root directory relative to the workspace.' },
+            max_results: { type: 'number', description: 'Maximum matches to return.' },
+          },
+        },
+      },
+      {
+        type: 'function',
         name: 'bash',
         description: 'Run shell commands to inspect the local workspace and gather evidence.',
         parameters: {
@@ -272,6 +344,7 @@ const localTools = enableTools
       search_files: searchFilesTool,
       read_file: readFileTool,
       grep_text: grepTextTool,
+      glob_paths: globPathsTool,
       bash: runBashTool,
     }
   : {};
