@@ -1,0 +1,7 @@
+{"ts": "", "source": "live_capture", "channel": "roma_ws", "event_type": "session_start", "turn_id": null, "message_id": null, "call_id": null, "payload": {"runtime": "roma_ws"}, "raw": {"type": "session_start"}}
+{"ts": "", "source": "inferred", "channel": "user", "event_type": "user_input", "turn_id": null, "message_id": null, "call_id": null, "payload": {"text": "say hello briefly"}, "raw": {"text": "say hello briefly"}}
+{"ts": "", "source": "inferred", "channel": "roma_ws", "event_type": "task_started", "turn_id": null, "message_id": null, "call_id": null, "payload": {}, "raw": {"type": "task_started"}}
+{"ts": "", "source": "live_capture", "channel": "assistant", "event_type": "assistant_message_delta", "turn_id": null, "message_id": null, "call_id": null, "payload": {"text": "Hello!"}, "raw": {"type": "assistant_message_delta", "text": "Hello!"}}
+{"ts": "", "source": "live_capture", "channel": "assistant", "event_type": "assistant_message", "turn_id": null, "message_id": null, "call_id": null, "payload": {"text": "Hello!"}, "raw": {"type": "assistant_message", "text": "Hello!", "raw": {"role": "assistant", "content": "Hello!"}}}
+{"ts": "", "source": "live_capture", "channel": "roma_ws", "event_type": "task_complete", "turn_id": null, "message_id": null, "call_id": null, "payload": {"ok": true}, "raw": {"type": "session_end", "ok": true}}
+{"ts": "", "source": "inferred", "channel": "roma_ws", "event_type": "session_end", "turn_id": null, "message_id": null, "call_id": null, "payload": {}, "raw": {"inferred_from": "roma_bridge_end"}}

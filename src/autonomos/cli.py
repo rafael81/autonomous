@@ -9,7 +9,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .app import run_chat
-from .baseline import compare_capture_against_baselines, format_comparison_results, import_normalized_trace_as_example, promote_capture_to_example
+from .baseline import (
+    build_golden_registry,
+    compare_capture_against_baselines,
+    format_comparison_results,
+    import_normalized_trace_as_example,
+    promote_capture_to_example,
+)
 from .codex_exec import build_exec_command, describe_ws_runtime, render_codex_config_toml
 from .compare import compare_normalized_sequences
 from .config import load_ws_auth_config
@@ -81,6 +87,9 @@ def build_parser() -> argparse.ArgumentParser:
     import_golden_raw.add_argument("example_id", help="Golden example id.")
     import_golden_raw.add_argument("prompt", help="Prompt associated with the trace.")
     import_golden_raw.add_argument("--output-dir", default="goldens", help="Directory where golden traces are stored.")
+
+    list_goldens = subparsers.add_parser("list-goldens", help="List repo-tracked golden traces.")
+    list_goldens.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
 
     observe = subparsers.add_parser("observe", help="Run the full observation pipeline: capture, normalize, promote, compare.")
     observe.add_argument("prompt", help="Prompt to send to codex exec.")
@@ -239,6 +248,11 @@ def main() -> int:
             for line in format_comparison_results(results, limit=args.top):
                 print(line)
             return 0 if matched else 1
+        if args.command == "list-goldens":
+            rows = build_golden_registry(Path(args.goldens_dir))
+            for row in rows:
+                print(f"{row['example_id']}\t{row['event_count']}\t{row['capture_mode']}\t{row['prompt']}")
+            return 0
         if args.command == "observe":
             outcome = observe_prompt(
                 prompt=args.prompt,

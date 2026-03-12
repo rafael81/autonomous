@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from autonomos.baseline import (
+    build_golden_registry,
     compare_capture_against_baselines,
     format_comparison_results,
     import_normalized_trace_as_example,
@@ -81,3 +82,26 @@ def test_format_comparison_results_sorts_by_score():
     )
 
     assert lines[0].startswith("MATCH a: score=0")
+
+
+def test_build_golden_registry_reads_prompt_and_event_count(tmp_path: Path):
+    example_dir = tmp_path / "goldens" / "codex-1"
+    example_dir.mkdir(parents=True)
+    (example_dir / "prompt.txt").write_text("hello\n", encoding="utf-8")
+    write_jsonl(
+        example_dir / "normalized.jsonl",
+        [{"ts": "1", "source": "fixture", "channel": "x", "event_type": "session_start", "turn_id": None, "message_id": None, "call_id": None, "payload": {}, "raw": {}}],
+    )
+    (example_dir / "meta.json").write_text(json.dumps({"capture_mode": "golden_trace"}), encoding="utf-8")
+
+    rows = build_golden_registry(tmp_path / "goldens")
+
+    assert rows == [
+        {
+            "example_id": "codex-1",
+            "prompt": "hello",
+            "capture_mode": "golden_trace",
+            "source_raw": None,
+            "event_count": 1,
+        }
+    ]

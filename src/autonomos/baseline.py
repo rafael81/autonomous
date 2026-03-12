@@ -35,6 +35,29 @@ def format_comparison_results(results: list[BaselineComparison], limit: int | No
     return lines
 
 
+def build_golden_registry(goldens_root: Path) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for example_dir in sorted(path for path in goldens_root.iterdir() if path.is_dir()):
+        meta_path = example_dir / "meta.json"
+        prompt_path = example_dir / "prompt.txt"
+        normalized_path = example_dir / "normalized.jsonl"
+        meta: dict[str, object] = {}
+        if meta_path.exists():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        prompt = prompt_path.read_text(encoding="utf-8").strip() if prompt_path.exists() else ""
+        event_count = len(read_jsonl(normalized_path)) if normalized_path.exists() else 0
+        rows.append(
+            {
+                "example_id": example_dir.name,
+                "prompt": prompt,
+                "capture_mode": meta.get("capture_mode", "unknown"),
+                "source_raw": meta.get("source_raw"),
+                "event_count": event_count,
+            }
+        )
+    return rows
+
+
 def promote_capture_to_example(
     *,
     capture_dir: Path,

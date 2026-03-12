@@ -1,0 +1,5 @@
+{
+  "example_id": "roma-simple-hello",
+  "prompt": "say hello briefly",
+  "capture_mode": "golden_trace"
+}
