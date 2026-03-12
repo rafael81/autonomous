@@ -66,6 +66,8 @@ STRATEGY_LIBRARY: tuple[StrategyDecision, ...] = (
 def choose_strategy(prompt: str) -> StrategyDecision:
     text = prompt.lower()
 
+    if any(token in text for token in ("review", "code review", "current changes", "diff", "리뷰")):
+        return _by_id("tool_oriented")
     if any(token in text for token in ("unsafe", "malware", "exploit", "steal", "bypass")):
         return _by_id("safety_refusal")
     if any(token in text for token in ("plan", "design", "spec", "approach", "strategy")):

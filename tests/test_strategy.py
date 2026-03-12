@@ -26,6 +26,12 @@ def test_choose_strategy_selects_tool_oriented_for_korean_structure_analysis():
     assert decision.strategy_id == "tool_oriented"
 
 
+def test_choose_strategy_selects_tool_oriented_for_review():
+    decision = choose_strategy("Review only the current CLI changes.")
+
+    assert decision.strategy_id == "tool_oriented"
+
+
 def test_instruction_builders_embed_mode_and_request():
     decision = choose_strategy("Say hello briefly.")
     policy = infer_prompt_policy("Say hello briefly.", decision)

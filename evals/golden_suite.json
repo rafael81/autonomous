@@ -1,0 +1,42 @@
+[
+  {
+    "example_id": "roma-simple-hello",
+    "prompt": "say hello briefly",
+    "invocation_mode": "chat",
+    "expected_strategy": "simple_answer",
+    "expected_tool_family": "none",
+    "max_score": 0
+  },
+  {
+    "example_id": "roma-readme-inspection",
+    "prompt": "List the top-level files in this repository and then read the first 20 lines of README.md.",
+    "invocation_mode": "chat",
+    "expected_strategy": "tool_oriented",
+    "expected_tool_family": "repo_inspection",
+    "max_score": 0
+  },
+  {
+    "example_id": "roma-project-structure-analysis",
+    "prompt": "현재 프로젝트 구조 분석",
+    "invocation_mode": "chat",
+    "expected_strategy": "tool_oriented",
+    "expected_tool_family": "repo_inspection",
+    "max_score": 5
+  },
+  {
+    "example_id": "roma-review-cli-changes",
+    "prompt": "Review only the current CLI changes.",
+    "invocation_mode": "review",
+    "expected_strategy": "planning",
+    "expected_tool_family": "none",
+    "max_score": 0
+  },
+  {
+    "example_id": "codex-project-analysis",
+    "prompt": "현재 내 프로젝트 분석",
+    "invocation_mode": "chat",
+    "expected_strategy": "tool_oriented",
+    "expected_tool_family": "repo_inspection",
+    "max_score": 5
+  }
+]

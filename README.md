@@ -64,6 +64,22 @@ Compare a normalized trace against all baselines:
 ./.venv/bin/autonomos compare-baselines captures/session-.../normalized.jsonl --baselines-dir examples
 ```
 
+Show the curated golden regression suite:
+
+```bash
+./.venv/bin/autonomos show-eval-suite
+```
+
+Run the golden regression suite and write reports:
+
+```bash
+./.venv/bin/autonomos run-regression \
+  --goldens-dir goldens \
+  --suite-path evals/golden_suite.json \
+  --report-path .tmp/regression/report.md \
+  --json-path .tmp/regression/results.json
+```
+
 ## Current state
 
 This repository now provides:

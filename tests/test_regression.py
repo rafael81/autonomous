@@ -1,0 +1,183 @@
+import json
+from pathlib import Path
+
+from autonomos.regression import (
+    build_regression_report,
+    detect_tool_family,
+    load_eval_suite,
+    run_regression_suite,
+)
+from autonomos.io import write_jsonl
+
+
+def test_load_eval_suite_reads_cases(tmp_path: Path):
+    suite_path = tmp_path / "suite.json"
+    suite_path.write_text(
+        json.dumps(
+            [
+                {
+                    "example_id": "hello",
+                    "prompt": "say hello briefly",
+                    "invocation_mode": "chat",
+                    "expected_strategy": "simple_answer",
+                    "expected_tool_family": "none",
+                    "max_score": 0,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    cases = load_eval_suite(suite_path)
+
+    assert len(cases) == 1
+    assert cases[0].example_id == "hello"
+
+
+def test_detect_tool_family_from_repo_tools(tmp_path: Path):
+    normalized = tmp_path / "normalized.jsonl"
+    write_jsonl(
+        normalized,
+        [
+            {"event_type": "tool_call_request", "payload": {"tool_name": "list_dir"}},
+            {"event_type": "tool_call_request", "payload": {"tool_name": "read_file"}},
+        ],
+    )
+
+    assert detect_tool_family(normalized) == "repo_inspection"
+
+
+def test_run_regression_suite_uses_expected_checks(monkeypatch, tmp_path: Path):
+    suite_path = tmp_path / "suite.json"
+    suite_path.write_text(
+        json.dumps(
+            [
+                {
+                    "example_id": "hello",
+                    "prompt": "say hello briefly",
+                    "invocation_mode": "chat",
+                    "expected_strategy": "simple_answer",
+                    "expected_tool_family": "none",
+                    "max_score": 0,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    class Summary:
+        strategy_id = "simple_answer"
+        closest_match_example_id = "hello"
+        closest_match_score = 0
+        final_message = "hello"
+        normalized_path = tmp_path / "captures" / "normalized.jsonl"
+        session_dir = tmp_path / "capture"
+
+    Summary.normalized_path.parent.mkdir(parents=True)
+    write_jsonl(Summary.normalized_path, [])
+    golden_dir = tmp_path / "goldens" / "hello"
+    golden_dir.mkdir(parents=True)
+    write_jsonl(golden_dir / "normalized.jsonl", [])
+
+    monkeypatch.setattr("autonomos.regression.run_chat", lambda **kwargs: Summary())
+
+    results = run_regression_suite(
+        profile="roma_ws",
+        cwd=tmp_path,
+        captures_dir=tmp_path / "captures",
+        promote_dir=tmp_path / "examples_live",
+        baselines_dir=tmp_path / "examples",
+        memory_dir=tmp_path / "memory",
+        goldens_dir=tmp_path / "goldens",
+        suite_path=suite_path,
+    )
+
+    assert len(results) == 1
+    assert results[0].passed is True
+    assert results[0].expected_score == 0
+
+
+def test_run_regression_suite_uses_review_resolution_for_review_cases(monkeypatch, tmp_path: Path):
+    suite_path = tmp_path / "suite.json"
+    suite_path.write_text(
+        json.dumps(
+            [
+                {
+                    "example_id": "review",
+                    "prompt": "Review only the current CLI changes.",
+                    "invocation_mode": "review",
+                    "expected_strategy": "tool_oriented",
+                    "expected_tool_family": "review",
+                    "max_score": 5,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    seen = {}
+
+    class Summary:
+        strategy_id = "tool_oriented"
+        closest_match_example_id = "review"
+        closest_match_score = 0
+        final_message = "finding"
+        normalized_path = tmp_path / "captures" / "normalized.jsonl"
+        session_dir = tmp_path / "capture"
+
+    Summary.normalized_path.parent.mkdir(parents=True)
+    write_jsonl(
+        Summary.normalized_path,
+        [{"event_type": "tool_call_request", "payload": {"tool_name": "bash"}}],
+    )
+    golden_dir = tmp_path / "goldens" / "review"
+    golden_dir.mkdir(parents=True)
+    write_jsonl(
+        golden_dir / "normalized.jsonl",
+        [{"event_type": "tool_call_request", "payload": {"tool_name": "bash"}}],
+    )
+
+    monkeypatch.setattr("autonomos.regression.resolve_review_request", lambda **kwargs: type("Req", (), {"prompt": "resolved review prompt"})())
+    monkeypatch.setattr("autonomos.regression.run_chat", lambda **kwargs: seen.update(kwargs) or Summary())
+
+    results = run_regression_suite(
+        profile="roma_ws",
+        cwd=tmp_path,
+        captures_dir=tmp_path / "captures",
+        promote_dir=tmp_path / "examples_live",
+        baselines_dir=tmp_path / "examples",
+        memory_dir=tmp_path / "memory",
+        goldens_dir=tmp_path / "goldens",
+        suite_path=suite_path,
+    )
+
+    assert results[0].passed is True
+    assert seen["prompt"] == "resolved review prompt"
+
+
+def test_build_regression_report_lists_failures():
+    rows = build_regression_report(
+        [
+            type(
+                "Obj",
+                (),
+                {
+                    "passed": False,
+                    "example_id": "hello",
+                    "prompt": "say hello briefly",
+                    "expected_strategy": "simple_answer",
+                    "actual_strategy": "planning",
+                    "expected_tool_family": "none",
+                    "actual_tool_family": "none",
+                    "expected_score": 4,
+                    "closest_match_example_id": "roma-simple-hello",
+                    "closest_match_score": 3,
+                    "session_dir": "captures/demo",
+                    "normalized_path": "captures/demo/normalized.jsonl",
+                },
+            )()
+        ]
+    )
+
+    assert "FAIL hello" in rows
+    assert "strategy: expected=simple_answer actual=planning" in rows
+    assert "expected_golden_score: 4" in rows

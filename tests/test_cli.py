@@ -206,3 +206,41 @@ def test_import_capture_golden_uses_prompt_file(monkeypatch, capsys, tmp_path: P
     assert exit_code == 0
     assert "hello-golden" in captured.out
     assert (tmp_path / "goldens" / "hello-golden" / "prompt.txt").exists()
+
+
+def test_show_eval_suite_prints_cases(monkeypatch, capsys, tmp_path: Path):
+    suite_path = tmp_path / "suite.json"
+    suite_path.write_text(
+        '[{"example_id":"hello","prompt":"say hello briefly","invocation_mode":"chat","expected_strategy":"simple_answer","expected_tool_family":"none","max_score":0}]',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sys, "argv", ["autonomos", "show-eval-suite", "--suite-path", str(suite_path)])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "hello\tsimple_answer\tnone\tmax_score=0\tsay hello briefly" in captured.out
+
+
+def test_run_regression_prints_summary(monkeypatch, capsys, tmp_path: Path):
+    class Result:
+        passed = True
+        example_id = "hello"
+        actual_strategy = "simple_answer"
+        actual_tool_family = "none"
+        expected_score = 0
+        closest_match_example_id = "hello"
+        closest_match_score = 0
+
+    monkeypatch.setattr("autonomos.cli.run_regression_suite", lambda **kwargs: [Result()])
+    monkeypatch.setattr("autonomos.cli.write_regression_report", lambda path, results: path)
+    monkeypatch.setattr("autonomos.cli.write_regression_json", lambda path, results: path)
+    monkeypatch.setattr(sys, "argv", ["autonomos", "run-regression"])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "passed=1 total=1" in captured.out
+    assert "PASS hello: strategy=simple_answer expected_score=0 tool_family=none closest=hello score=0" in captured.out

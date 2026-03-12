@@ -164,6 +164,10 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
             planning_penalty = 1
     elif policy.prompt_mode == "code_review":
         lowered = final_message.lower()
+        if not tool_rows:
+            substantive_evidence_penalty = 1
+        if "bash" not in tool_names:
+            preferred_tool_penalty = 1
         if "prioritized" not in lowered and "risk" not in lowered and "finding" not in lowered:
             substantive_evidence_penalty = 1
 

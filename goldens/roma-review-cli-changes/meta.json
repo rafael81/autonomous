@@ -2,5 +2,5 @@
   "example_id": "roma-review-cli-changes",
   "prompt": "Review only the current CLI changes.",
   "capture_mode": "golden_trace",
-  "source_capture_dir": "captures/attempt-2-tool_oriented/roma-session-20260312T142914Z"
+  "source_capture_dir": "captures/roma-review-cli-changes/attempt-2-planning/roma-session-20260312T152529Z"
 }

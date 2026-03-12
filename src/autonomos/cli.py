@@ -26,6 +26,7 @@ from .live_capture import run_capture, save_capture_session
 from .memory import list_sessions
 from .orchestration import write_approval_response, write_request_user_input_response
 from .review import resolve_review_request
+from .regression import DEFAULT_EVAL_SUITE_PATH, load_eval_suite, run_regression_suite, write_regression_json, write_regression_report
 from .verification import format_verification_results, verify_runtime_against_goldens
 from .workflow import observe_prompt
 
@@ -107,6 +108,21 @@ def build_parser() -> argparse.ArgumentParser:
     verify_runtime.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
     verify_runtime.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     verify_runtime.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
+
+    show_eval_suite = subparsers.add_parser("show-eval-suite", help="Print the configured golden regression evaluation suite.")
+    show_eval_suite.add_argument("--suite-path", default=str(DEFAULT_EVAL_SUITE_PATH), help="Path to eval suite JSON.")
+
+    run_regression = subparsers.add_parser("run-regression", help="Run the golden regression suite and emit readable reports.")
+    run_regression.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
+    run_regression.add_argument("--cwd", default=".", help="Working directory for runtime execution.")
+    run_regression.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    run_regression.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    run_regression.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    run_regression.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    run_regression.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
+    run_regression.add_argument("--suite-path", default=str(DEFAULT_EVAL_SUITE_PATH), help="Path to eval suite JSON.")
+    run_regression.add_argument("--report-path", default=".tmp/regression/report.md", help="Path to write markdown report.")
+    run_regression.add_argument("--json-path", default=".tmp/regression/results.json", help="Path to write JSON results.")
 
     observe = subparsers.add_parser("observe", help="Run the full observation pipeline: capture, normalize, promote, compare.")
     observe.add_argument("prompt", help="Prompt to send to codex exec.")
@@ -300,6 +316,13 @@ def main() -> int:
             for row in rows:
                 print(f"{row['example_id']}\t{row['event_count']}\t{row['capture_mode']}\t{row['prompt']}")
             return 0
+        if args.command == "show-eval-suite":
+            for case in load_eval_suite(Path(args.suite_path)):
+                print(
+                    f"{case.example_id}\t{case.expected_strategy}\t{case.expected_tool_family}\t"
+                    f"max_score={case.max_score}\t{case.prompt}"
+                )
+            return 0
         if args.command == "verify-runtime":
             results = verify_runtime_against_goldens(
                 profile=args.profile,
@@ -315,6 +338,33 @@ def main() -> int:
             for line in format_verification_results(results):
                 print(line)
             return 0 if matched == len(results) else 1
+        if args.command == "run-regression":
+            results = run_regression_suite(
+                profile=args.profile,
+                cwd=Path(args.cwd),
+                captures_dir=Path(args.captures_dir),
+                promote_dir=Path(args.promote_dir),
+                baselines_dir=Path(args.baselines_dir),
+                memory_dir=Path(args.memory_dir),
+                goldens_dir=Path(args.goldens_dir),
+                suite_path=Path(args.suite_path),
+            )
+            report_path = write_regression_report(Path(args.report_path), results)
+            json_path = write_regression_json(Path(args.json_path), results)
+            passed = len([result for result in results if result.passed])
+            print(f"passed={passed} total={len(results)}")
+            print(f"report={report_path}")
+            print(f"json={json_path}")
+            for result in results:
+                status = "PASS" if result.passed else "FAIL"
+                print(
+                    f"{status} {result.example_id}: strategy={result.actual_strategy} "
+                    f"expected_score={result.expected_score if result.expected_score is not None else '?'} "
+                    f"tool_family={result.actual_tool_family} "
+                    f"closest={result.closest_match_example_id or 'none'} "
+                    f"score={result.closest_match_score if result.closest_match_score is not None else '?'}"
+                )
+            return 0 if passed == len(results) else 1
         if args.command == "observe":
             outcome = observe_prompt(
                 prompt=args.prompt,
