@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .adaptive import AdaptiveSummary, summarize_attempt_progress
-from .baseline import best_comparison_match, compare_capture_against_baselines, promote_capture_to_example
+from .baseline import best_comparison_match, compare_capture_against_baselines, format_comparison_results, promote_capture_to_example
 from .instructions import build_full_instructions, render_user_request
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory, load_session_memory, render_memory_context
@@ -101,6 +101,7 @@ def run_chat(
                 has_normalized_output=result.normalized_path.exists(),
                 prompt=prompt,
             )
+            closest_match = best_comparison_match(comparison_results)
             attempts.append(
                 RomaAttemptResult(
                     result=result,
@@ -111,7 +112,11 @@ def run_chat(
             )
             if _should_short_circuit_roma_attempts(prompt=prompt, attempt=attempts[-1]):
                 break
-            retry_appendix = build_retry_appendix(orchestration.retry_reason)
+            retry_appendix = build_retry_appendix(
+                orchestration.retry_reason,
+                closest_match_example_id=closest_match.example_id if closest_match else None,
+                closest_match_score=closest_match.score if closest_match else None,
+            )
             if any(item.matches for item in comparison_results):
                 break
 
@@ -177,7 +182,9 @@ def run_chat(
                         f"strategy={strategy.strategy_id}; "
                         f"attempts={[attempt.strategy.strategy_id for attempt in attempts]}; "
                         f"policy={orchestration.policy_summary}; "
-                        f"adaptive={adaptive_summary.notes}"
+                        f"adaptive={adaptive_summary.notes}; "
+                        f"closest_match={closest_match.example_id if closest_match else 'none'}; "
+                        f"top_comparisons={format_comparison_results(comparison_results, limit=3)}"
                     ),
                 )
                 + "\n",

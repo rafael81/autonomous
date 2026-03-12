@@ -114,15 +114,32 @@ def render_request_user_input_response(response_path: Path | None) -> str:
     return "\n".join(rendered) + "\n\n"
 
 
-def build_retry_appendix(retry_reason: str | None) -> str:
+def build_retry_appendix(
+    retry_reason: str | None,
+    *,
+    closest_match_example_id: str | None = None,
+    closest_match_score: int | None = None,
+) -> str:
     if not retry_reason:
         return ""
-    return (
-        "\n\nRetry guidance:\n"
-        f"- Previous attempt issue: {retry_reason}\n"
-        "- On this retry, reduce unnecessary divergence from the baseline event structure.\n"
-        "- Prefer the smallest tool footprint that can still answer correctly.\n"
+    lines = [
+        "",
+        "",
+        "Retry guidance:",
+        f"- Previous attempt issue: {retry_reason}",
+    ]
+    if closest_match_example_id is not None:
+        lines.append(
+            f"- Closest golden match so far: {closest_match_example_id} (score={closest_match_score if closest_match_score is not None else '?'})"
+        )
+        lines.append("- On this retry, move the event flow and tool footprint closer to that golden trace.")
+    lines.extend(
+        [
+            "- On this retry, reduce unnecessary divergence from the baseline event structure.",
+            "- Prefer the smallest tool footprint that can still answer correctly.",
+        ]
     )
+    return "\n".join(lines)
 
 
 def decide_orchestration(

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .adaptive import AdaptiveSummary, summarize_attempt_progress
-from .baseline import BaselineComparison, compare_capture_against_baselines, promote_capture_to_example
+from .baseline import BaselineComparison, best_comparison_match, compare_capture_against_baselines, promote_capture_to_example
 from .codex_exec import build_exec_command
 from .instructions import build_full_instructions, render_user_request
 from .live_capture import LiveCaptureResult, SavedCapturePaths, run_capture, save_capture_session
@@ -107,7 +107,12 @@ def observe_prompt(
                 orchestration=orchestration,
             )
         )
-        retry_appendix = build_retry_appendix(orchestration.retry_reason)
+        closest_match = best_comparison_match(comparison_results)
+        retry_appendix = build_retry_appendix(
+            orchestration.retry_reason,
+            closest_match_example_id=closest_match.example_id if closest_match else None,
+            closest_match_score=closest_match.score if closest_match else None,
+        )
         if any(item.matches for item in comparison_results):
             break
 

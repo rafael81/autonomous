@@ -16,3 +16,14 @@ def test_build_retry_appendix_includes_reason():
 
     assert "baseline mismatch remains high" in text
     assert "Retry guidance" in text
+
+
+def test_build_retry_appendix_includes_closest_match():
+    text = build_retry_appendix(
+        "baseline mismatch remains high",
+        closest_match_example_id="roma-readme-inspection",
+        closest_match_score=1,
+    )
+
+    assert "roma-readme-inspection" in text
+    assert "score=1" in text
