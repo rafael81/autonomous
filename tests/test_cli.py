@@ -56,6 +56,23 @@ def test_sessions_latest_prints_most_recent(monkeypatch, capsys, tmp_path: Path)
     assert captured.out.strip() == "new"
 
 
+def test_sessions_show_summary_prints_compacted_summary(monkeypatch, capsys, tmp_path: Path):
+    write_jsonl(
+        tmp_path / "demo.jsonl",
+        [
+            {"role": "summary", "text": "Session summary:\n- prior work", "ts": "2026-03-11T01:00:00+00:00"},
+            {"role": "user", "text": "hi", "ts": "2026-03-11T01:01:00+00:00"},
+        ],
+    )
+    monkeypatch.setattr(sys, "argv", ["autonomos", "sessions", "--memory-dir", str(tmp_path), "--show-summary"])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Session summary:" in captured.out
+
+
 def test_resolve_session_id_can_generate_new_id():
     session_id = cli._resolve_session_id("default", True)
 
@@ -163,3 +180,29 @@ def test_review_command_uses_resolved_review_prompt(monkeypatch, capsys, tmp_pat
     assert exit_code == 0
     assert captured_kwargs["prompt"] == "Review the current code changes."
     assert "[review-target] current changes" in captured.out
+
+
+def test_import_capture_golden_uses_prompt_file(monkeypatch, capsys, tmp_path: Path):
+    capture_dir = tmp_path / "capture"
+    capture_dir.mkdir()
+    (capture_dir / "prompt.txt").write_text("say hello briefly\n", encoding="utf-8")
+    write_jsonl(capture_dir / "normalized.jsonl", [])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "autonomos",
+            "import-capture-golden",
+            str(capture_dir),
+            "hello-golden",
+            "--output-dir",
+            str(tmp_path / "goldens"),
+        ],
+    )
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "hello-golden" in captured.out
+    assert (tmp_path / "goldens" / "hello-golden" / "prompt.txt").exists()

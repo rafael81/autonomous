@@ -1,0 +1,6 @@
+{
+  "example_id": "roma-readme-inspection-live",
+  "prompt": "List the top-level files in this repository and then read the first 20 lines of README.md.",
+  "capture_mode": "golden_trace",
+  "source_capture_dir": "captures/attempt-1-tool_oriented/roma-session-20260311T141859Z"
+}

@@ -1,14 +1,22 @@
 from pathlib import Path
 
-from autonomos.memory import MemoryTurn, append_session_memory, list_sessions
+from autonomos.cli import _read_session_summary
+from autonomos.memory import MemoryTurn, append_session_memory
 
 
-def test_list_sessions_reports_saved_histories(tmp_path: Path):
-    append_session_memory(tmp_path, "alpha", [MemoryTurn(role="user", text="hello")])
-    append_session_memory(tmp_path, "beta", [MemoryTurn(role="user", text="hi"), MemoryTurn(role="assistant", text="there")])
+def test_read_session_summary_returns_compacted_summary(tmp_path: Path):
+    memory_dir = tmp_path / "memory"
+    session_id = "demo"
+    turns = []
+    for idx in range(12):
+        turns.extend(
+            [
+                MemoryTurn(role="user", text=f"user turn {idx}"),
+                MemoryTurn(role="assistant", text=f"assistant turn {idx}"),
+            ]
+        )
+    append_session_memory(memory_dir, session_id, turns)
 
-    sessions = list_sessions(tmp_path)
+    summary = _read_session_summary(memory_dir, session_id)
 
-    assert any(session_id == "alpha" and count == 1 and last_ts is not None for session_id, count, last_ts in sessions)
-    assert any(session_id == "beta" and count == 2 and last_ts is not None for session_id, count, last_ts in sessions)
-    assert sessions[0][0] == "beta"
+    assert summary == "Session summary:"

@@ -84,6 +84,12 @@ def build_parser() -> argparse.ArgumentParser:
     import_golden.add_argument("prompt", help="Prompt associated with the trace.")
     import_golden.add_argument("--output-dir", default="goldens", help="Directory where golden traces are stored.")
 
+    import_capture_golden = subparsers.add_parser("import-capture-golden", help="Import a saved capture directory as a repo-tracked golden example.")
+    import_capture_golden.add_argument("capture_dir", help="Capture session directory containing normalized.jsonl and prompt.txt.")
+    import_capture_golden.add_argument("example_id", help="Golden example id.")
+    import_capture_golden.add_argument("--output-dir", default="goldens", help="Directory where golden traces are stored.")
+    import_capture_golden.add_argument("--prompt", help="Optional prompt override.")
+
     import_golden_raw = subparsers.add_parser("import-golden-raw", help="Normalize a raw exec trace and import it as a golden example.")
     import_golden_raw.add_argument("raw", help="Path to raw exec JSONL trace.")
     import_golden_raw.add_argument("example_id", help="Golden example id.")
@@ -167,6 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
     sessions = subparsers.add_parser("sessions", help="List saved local chat sessions.")
     sessions.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     sessions.add_argument("--latest", action="store_true", help="Print only the most recently active session id.")
+    sessions.add_argument("--show-summary", action="store_true", help="Print the latest compact summary line for each session.")
 
     repl = subparsers.add_parser("repl", help="Run a simple interactive chat loop.")
     repl.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
@@ -245,6 +252,21 @@ def main() -> int:
                 output_root=Path(args.output_dir),
                 example_id=args.example_id,
                 prompt=args.prompt,
+            )
+            print(f"imported golden trace to {example_dir}")
+            return 0
+        if args.command == "import-capture-golden":
+            capture_dir = Path(args.capture_dir)
+            prompt = args.prompt
+            if prompt is None:
+                prompt_path = capture_dir / "prompt.txt"
+                prompt = prompt_path.read_text(encoding="utf-8").strip()
+            example_dir = import_normalized_trace_as_example(
+                normalized_path=capture_dir / "normalized.jsonl",
+                output_root=Path(args.output_dir),
+                example_id=args.example_id,
+                prompt=prompt,
+                meta={"capture_mode": "golden_trace", "source_capture_dir": str(capture_dir)},
             )
             print(f"imported golden trace to {example_dir}")
             return 0
@@ -465,7 +487,12 @@ def main() -> int:
                 return 0
             for index, (session_id, count, last_ts) in enumerate(rows):
                 marker = "*" if index == 0 else " "
-                print(f"{marker}\t{session_id}\t{count}\t{last_ts or '-'}")
+                line = f"{marker}\t{session_id}\t{count}\t{last_ts or '-'}"
+                if args.show_summary:
+                    summary = _read_session_summary(Path(args.memory_dir), session_id)
+                    if summary:
+                        line += f"\t{summary}"
+                print(line)
             return 0
         if args.command == "repl":
             session_id = _resolve_session_id(args.session_id, args.new_session)
@@ -480,6 +507,14 @@ def main() -> int:
                     continue
                 if prompt in {"/exit", "/quit"}:
                     break
+                if prompt == "/sessions":
+                    for index, (sid, count, last_ts) in enumerate(list_sessions(Path(args.memory_dir))):
+                        marker = "*" if sid == session_id else ("+" if index == 0 else " ")
+                        print(f"{marker}\t{sid}\t{count}\t{last_ts or '-'}")
+                    continue
+                if prompt == "/context":
+                    _print_session_context(Path(args.memory_dir), session_id)
+                    continue
                 summary = run_chat(
                     prompt=prompt,
                     profile=args.profile,
@@ -565,6 +600,8 @@ def _print_repl_summary(summary) -> None:
         print(f"[request-user-input] {summary.request_user_input_path}")
     if summary.approval_request_path:
         print(f"[approval-request] {summary.approval_request_path}")
+    if summary.closest_match_example_id is not None:
+        print(f"[closest-match] {summary.closest_match_example_id} (score={summary.closest_match_score})")
 
 
 def _handle_repl_follow_up(
@@ -643,3 +680,27 @@ def _resolve_session_id(session_id: str, new_session: bool) -> str:
     if not new_session:
         return session_id
     return datetime.now(UTC).strftime("session-%Y%m%dT%H%M%SZ")
+
+
+def _read_session_summary(memory_dir: Path, session_id: str) -> str | None:
+    path = memory_dir / f"{session_id}.jsonl"
+    if not path.exists():
+        return None
+    rows = read_jsonl(path)
+    for row in reversed(rows):
+        if row.get("role") == "summary":
+            text = str(row.get("text", "")).splitlines()
+            return text[0] if text else None
+    return None
+
+
+def _print_session_context(memory_dir: Path, session_id: str) -> None:
+    path = memory_dir / f"{session_id}.jsonl"
+    if not path.exists():
+        print("No saved session context.")
+        return
+    rows = read_jsonl(path)
+    for row in rows[-8:]:
+        role = row.get("role", "unknown")
+        text = str(row.get("text", "")).strip()
+        print(f"{role}> {text}")

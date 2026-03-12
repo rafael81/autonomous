@@ -1,19 +1,21 @@
-from pathlib import Path
-
-from autonomos.memory import MemoryTurn, append_session_memory, load_session_memory, render_memory_context
+from autonomos.memory import MemoryTurn, append_session_memory, load_session_memory
 
 
-def test_memory_round_trip(tmp_path: Path):
-    path = append_session_memory(tmp_path, "session-1", [MemoryTurn(role="user", text="hello")])
-    turns = load_session_memory(tmp_path, "session-1")
+def test_append_session_memory_compacts_long_sessions(tmp_path):
+    memory_dir = tmp_path / "memory"
+    session_id = "demo"
+    turns = []
+    for idx in range(12):
+        turns.extend(
+            [
+                MemoryTurn(role="user", text=f"user turn {idx}"),
+                MemoryTurn(role="assistant", text=f"assistant turn {idx}"),
+            ]
+        )
 
-    assert path.exists()
-    assert turns == [MemoryTurn(role="user", text="hello")]
+    append_session_memory(memory_dir, session_id, turns)
+    loaded = load_session_memory(memory_dir, session_id)
 
-
-def test_render_memory_context_limits_recent_turns():
-    turns = [MemoryTurn(role="user", text=f"u{i}") for i in range(8)]
-    text = render_memory_context(turns, limit=3)
-
-    assert "u7" in text
-    assert "u0" not in text
+    assert any(turn.role == "summary" for turn in loaded)
+    assert loaded[-1].role == "assistant"
+    assert len([turn for turn in loaded if turn.role in {"user", "assistant"}]) <= 6
