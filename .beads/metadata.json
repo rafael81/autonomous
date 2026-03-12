@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "autonomos",
+  "project_id": "f400a02c-6e5d-47ea-a856-48041b3efbab"
+}
