@@ -68,6 +68,8 @@ def test_import_normalized_trace_as_example_creates_golden_shape(tmp_path: Path)
     assert (example_dir / "observed.jsonl").exists()
     assert (example_dir / "meta.json").exists()
     assert (example_dir / "report.md").exists()
+    meta = json.loads((example_dir / "meta.json").read_text(encoding="utf-8"))
+    assert meta["capture_mode"] == "golden_trace"
 
 
 def test_format_comparison_results_sorts_by_score():

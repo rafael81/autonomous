@@ -76,6 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
     import_golden.add_argument("prompt", help="Prompt associated with the trace.")
     import_golden.add_argument("--output-dir", default="goldens", help="Directory where golden traces are stored.")
 
+    import_golden_raw = subparsers.add_parser("import-golden-raw", help="Normalize a raw exec trace and import it as a golden example.")
+    import_golden_raw.add_argument("raw", help="Path to raw exec JSONL trace.")
+    import_golden_raw.add_argument("example_id", help="Golden example id.")
+    import_golden_raw.add_argument("prompt", help="Prompt associated with the trace.")
+    import_golden_raw.add_argument("--output-dir", default="goldens", help="Directory where golden traces are stored.")
+
     observe = subparsers.add_parser("observe", help="Run the full observation pipeline: capture, normalize, promote, compare.")
     observe.add_argument("prompt", help="Prompt to send to codex exec.")
     observe.add_argument("--profile", default=DEFAULT_OBSERVE_PROFILE, help="Codex profile name.")
@@ -205,6 +211,21 @@ def main() -> int:
                 output_root=Path(args.output_dir),
                 example_id=args.example_id,
                 prompt=args.prompt,
+            )
+            print(f"imported golden trace to {example_dir}")
+            return 0
+        if args.command == "import-golden-raw":
+            raw_path = Path(args.raw)
+            normalized_path = raw_path.with_suffix(".normalized.jsonl")
+            from .io import write_jsonl
+
+            write_jsonl(normalized_path, normalize_exec_events(read_jsonl(raw_path)))
+            example_dir = import_normalized_trace_as_example(
+                normalized_path=normalized_path,
+                output_root=Path(args.output_dir),
+                example_id=args.example_id,
+                prompt=args.prompt,
+                meta={"source_raw": str(raw_path)},
             )
             print(f"imported golden trace to {example_dir}")
             return 0
