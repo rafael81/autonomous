@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+
+
+GOLDENS_ROOT = Path("goldens")
 
 
 @dataclass(frozen=True)
@@ -101,7 +105,7 @@ def choose_strategy(prompt: str) -> StrategyDecision:
     return _by_id("simple_answer")
 
 
-def candidate_strategies(prompt: str, limit: int = 3) -> list[StrategyDecision]:
+def candidate_strategies(prompt: str, limit: int = 3, goldens_root: Path = GOLDENS_ROOT) -> list[StrategyDecision]:
     text = prompt.lower()
     if any(
         token in text
@@ -113,7 +117,7 @@ def candidate_strategies(prompt: str, limit: int = 3) -> list[StrategyDecision]:
     ):
         return [_by_id("tool_oriented")]
 
-    primary = choose_strategy(prompt)
+    primary = infer_golden_strategy_hint(prompt, goldens_root=goldens_root) or choose_strategy(prompt)
     ordered = [primary]
 
     if primary.strategy_id == "tool_oriented":
@@ -133,6 +137,48 @@ def candidate_strategies(prompt: str, limit: int = 3) -> list[StrategyDecision]:
         seen.add(item.strategy_id)
         deduped.append(item)
     return deduped[:limit]
+
+
+def infer_golden_strategy_hint(prompt: str, goldens_root: Path = GOLDENS_ROOT) -> StrategyDecision | None:
+    if not goldens_root.exists():
+        return None
+    prompt_tokens = _tokenize(prompt)
+    if not prompt_tokens:
+        return None
+
+    best_score = 0.0
+    best_prompt = None
+    for prompt_path in goldens_root.glob("*/prompt.txt"):
+        golden_prompt = prompt_path.read_text(encoding="utf-8").strip()
+        golden_tokens = _tokenize(golden_prompt)
+        if not golden_tokens:
+            continue
+        overlap = len(prompt_tokens & golden_tokens)
+        union = len(prompt_tokens | golden_tokens)
+        score = overlap / union if union else 0.0
+        if score > best_score:
+            best_score = score
+            best_prompt = golden_prompt
+
+    if best_prompt is None or best_score < 0.55:
+        return None
+    return choose_strategy(best_prompt)
+
+
+def _tokenize(text: str) -> set[str]:
+    normalized = (
+        text.lower()
+        .replace(".", " ")
+        .replace(",", " ")
+        .replace(":", " ")
+        .replace("/", " ")
+        .replace("-", " ")
+        .replace("_", " ")
+        .replace("\n", " ")
+    )
+    return {token for token in normalized.split() if len(token) >= 2}
+
+
 def _by_id(strategy_id: str) -> StrategyDecision:
     for item in STRATEGY_LIBRARY:
         if item.strategy_id == strategy_id:

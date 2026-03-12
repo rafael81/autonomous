@@ -1,6 +1,8 @@
+from pathlib import Path
+
 from autonomos.instructions import build_full_instructions, render_user_request
 from autonomos.policy import infer_prompt_policy
-from autonomos.strategy import candidate_strategies, choose_strategy
+from autonomos.strategy import candidate_strategies, choose_strategy, infer_golden_strategy_hint
 
 
 def test_choose_strategy_selects_planning():
@@ -53,3 +55,32 @@ def test_candidate_strategies_shortens_for_structure_inspection():
     decisions = candidate_strategies("현재 프로젝트 구조 분석")
 
     assert [decision.strategy_id for decision in decisions] == ["tool_oriented"]
+
+
+def test_infer_golden_strategy_hint_uses_matching_golden_prompt(tmp_path: Path):
+    goldens = tmp_path / "goldens"
+    hello = goldens / "roma-simple-hello"
+    hello.mkdir(parents=True)
+    (hello / "prompt.txt").write_text("say hello briefly\n", encoding="utf-8")
+
+    decision = infer_golden_strategy_hint("say hello briefly please", goldens_root=goldens)
+
+    assert decision is not None
+    assert decision.strategy_id == "simple_answer"
+
+
+def test_candidate_strategies_uses_golden_hint_for_ordering(tmp_path: Path):
+    goldens = tmp_path / "goldens"
+    review = goldens / "roma-readme-inspection"
+    review.mkdir(parents=True)
+    (review / "prompt.txt").write_text(
+        "List the top-level files in this repository and then read the first 20 lines of README.md.\n",
+        encoding="utf-8",
+    )
+
+    decisions = candidate_strategies(
+        "List the top-level files in this repository and then read the first 20 lines of README.md.",
+        goldens_root=goldens,
+    )
+
+    assert decisions[0].strategy_id == "tool_oriented"
