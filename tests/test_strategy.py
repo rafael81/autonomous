@@ -31,7 +31,8 @@ def test_instruction_builders_embed_mode_and_request():
     request = render_user_request("Say hello briefly.")
 
     assert "Current mode: simple_answer." in instructions
-    assert "concise, direct, friendly teammate tone" in instructions
+    assert "## Planning" in instructions
+    assert "## Validation" in instructions
     assert request.endswith("Say hello briefly.")
 
 

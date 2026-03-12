@@ -33,3 +33,30 @@ def test_compare_rejects_different_tool_sequence():
     assert result.matches is False
     assert result.score > 0
     assert any("tool orchestration differs" in detail or "event type sequence differs" in detail for detail in result.details)
+
+
+def test_compare_rejects_different_event_shapes():
+    expected = [_event("session_start"), _event("assistant_message", text="hello")]
+    actual = [_event("session_start"), _event("assistant_message", text="")]
+
+    result = compare_normalized_sequences(expected, actual)
+
+    assert result.matches is False
+    assert any("event shape sequence differs" in detail for detail in result.details)
+
+
+def test_compare_rejects_tool_request_result_count_mismatch():
+    expected = [
+        _event("session_start"),
+        _event("tool_call_request", tool_name="read_file"),
+        _event("tool_call_result", tool_name="read_file"),
+    ]
+    actual = [
+        _event("session_start"),
+        _event("tool_call_request", tool_name="read_file"),
+    ]
+
+    result = compare_normalized_sequences(expected, actual)
+
+    assert result.matches is False
+    assert any("tool request/result counts differ" in detail for detail in result.details)
