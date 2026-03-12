@@ -169,9 +169,11 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
     over_budget_penalty = 1 if len(tool_rows) > policy.tool_budget * 2 else 0
     comparison_score = getattr(attempt, "comparison_score", 10_000)
     comparison_matches = getattr(attempt, "comparison_matches", 0)
+    near_golden_bonus = 0 if comparison_matches > 0 and comparison_score <= 1 else 1
 
     return (
         comparison_matches == 0,
+        near_golden_bonus,
         access_fallback_penalty,
         empty_fallback_penalty,
         planning_penalty,

@@ -21,6 +21,12 @@ class BaselineComparison:
     score: int
 
 
+def best_comparison_match(results: list[BaselineComparison]) -> BaselineComparison | None:
+    if not results:
+        return None
+    return min(results, key=lambda item: (item.score, not item.matches, item.example_id))
+
+
 def format_comparison_results(results: list[BaselineComparison], limit: int | None = None) -> list[str]:
     ordered = sorted(results, key=lambda item: (item.score, not item.matches, item.example_id))
     if limit is not None:

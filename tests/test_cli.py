@@ -82,6 +82,8 @@ def test_chat_new_session_uses_generated_id(monkeypatch, capsys, tmp_path: Path)
         adaptive_notes = "none"
         memory_path = None
         approval_request_path = None
+        closest_match_example_id = "roma-simple-hello"
+        closest_match_score = 0
 
     monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: captured_kwargs.update(kwargs) or Summary())
     monkeypatch.setattr(sys, "argv", ["autonomos", "chat", "hello", "--new-session"])
@@ -92,6 +94,7 @@ def test_chat_new_session_uses_generated_id(monkeypatch, capsys, tmp_path: Path)
     assert exit_code == 0
     assert captured_kwargs["session_id"].startswith("session-")
     assert "[session-id] session-" in captured.out
+    assert "[closest-match] roma-simple-hello (score=0)" in captured.out
 
 
 def test_chat_defaults_to_roma_runtime_profile(monkeypatch, capsys, tmp_path: Path):
@@ -113,6 +116,8 @@ def test_chat_defaults_to_roma_runtime_profile(monkeypatch, capsys, tmp_path: Pa
         adaptive_notes = "none"
         memory_path = None
         approval_request_path = None
+        closest_match_example_id = "roma-simple-hello"
+        closest_match_score = 0
 
     monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: captured_kwargs.update(kwargs) or Summary())
     monkeypatch.setattr(sys, "argv", ["autonomos", "chat", "hello"])

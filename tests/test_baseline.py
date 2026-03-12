@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from autonomos.baseline import (
+    best_comparison_match,
     build_golden_registry,
     compare_capture_against_baselines,
     format_comparison_results,
@@ -105,3 +106,15 @@ def test_build_golden_registry_reads_prompt_and_event_count(tmp_path: Path):
             "event_count": 1,
         }
     ]
+
+
+def test_best_comparison_match_prefers_match_at_same_score():
+    match = best_comparison_match(
+        [
+            type("Obj", (), {"example_id": "b", "matches": False, "summary": "", "details": [], "score": 1})(),
+            type("Obj", (), {"example_id": "a", "matches": True, "summary": "", "details": [], "score": 1})(),
+        ]
+    )
+
+    assert match is not None
+    assert match.example_id == "a"

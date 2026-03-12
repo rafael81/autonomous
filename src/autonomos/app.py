@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .adaptive import AdaptiveSummary, summarize_attempt_progress
-from .baseline import compare_capture_against_baselines, promote_capture_to_example
+from .baseline import best_comparison_match, compare_capture_against_baselines, promote_capture_to_example
 from .instructions import build_full_instructions, render_user_request
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory, load_session_memory, render_memory_context
@@ -43,6 +43,8 @@ class ChatRunSummary:
     adaptive_notes: str
     memory_path: Path | None
     approval_request_path: Path | None
+    closest_match_example_id: str | None
+    closest_match_score: int | None
 
 
 def run_chat(
@@ -144,6 +146,7 @@ def run_chat(
         )
         request_user_input_path = None
         approval_request_path = None
+        closest_match = best_comparison_match(comparison_results)
         if orchestration.requires_approval:
             approval_request_path = write_approval_artifact(session_dir=result.session_dir, prompt=prompt)
         if orchestration.should_request_user_input:
@@ -196,6 +199,8 @@ def run_chat(
             adaptive_notes=adaptive_summary.notes,
             memory_path=memory_path,
             approval_request_path=approval_request_path,
+            closest_match_example_id=closest_match.example_id if closest_match else None,
+            closest_match_score=closest_match.score if closest_match else None,
         )
 
     outcome: ObservationRunResult = observe_prompt(
@@ -217,6 +222,7 @@ def run_chat(
             session_id,
             [MemoryTurn(role="user", text=prompt), MemoryTurn(role="assistant", text=final_message)],
         )
+    closest_match = best_comparison_match(outcome.comparison_results)
     return ChatRunSummary(
         final_message=final_message,
         strategy_id=outcome.strategy.strategy_id,
@@ -233,6 +239,8 @@ def run_chat(
         adaptive_notes=outcome.adaptive_summary.notes,
         memory_path=memory_path,
         approval_request_path=outcome.approval_request_path,
+        closest_match_example_id=closest_match.example_id if closest_match else None,
+        closest_match_score=closest_match.score if closest_match else None,
     )
 
 

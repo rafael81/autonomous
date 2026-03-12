@@ -332,6 +332,8 @@ def main() -> int:
             print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
             print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+            if summary.closest_match_example_id is not None:
+                print(f"[closest-match] {summary.closest_match_example_id} (score={summary.closest_match_score})")
             return 0
         if args.command == "resume":
             session_id = _resolve_session_id(args.session_id, args.new_session)
@@ -370,6 +372,8 @@ def main() -> int:
             print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
             print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+            if summary.closest_match_example_id is not None:
+                print(f"[closest-match] {summary.closest_match_example_id} (score={summary.closest_match_score})")
             return 0
         if args.command == "transcript":
             _print_transcript(read_jsonl(Path(args.normalized)), show_deltas=args.show_deltas)
