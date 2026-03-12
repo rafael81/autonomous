@@ -65,6 +65,7 @@ def run_chat(
     session_id: str,
     request_user_input_response_path: Path | None = None,
     approval_response_path: Path | None = None,
+    target_example_id: str | None = None,
 ) -> ChatRunSummary:
     memory_turns = load_session_memory(memory_dir, session_id)
     memory_path = None
@@ -117,6 +118,10 @@ def run_chat(
                     comparison_matches=len([item for item in comparison_results if item.matches]),
                     prompt_match_score=min(
                         (item.score for item in comparison_results if item.example_id in prompt_matched_examples),
+                        default=10_000,
+                    ),
+                    preferred_match_score=min(
+                        (item.score for item in comparison_results if item.example_id == target_example_id),
                         default=10_000,
                     ),
                 )

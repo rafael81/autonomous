@@ -42,6 +42,7 @@ def test_rank_roma_attempt_prefers_tool_backed_inspection_answer(tmp_path: Path)
         comparison_score=2,
         comparison_matches=0,
         prompt_match_score=2,
+        preferred_match_score=2,
     )
     tool_attempt = RomaAttemptResult(
         result=RomaChatResult(
@@ -57,6 +58,7 @@ def test_rank_roma_attempt_prefers_tool_backed_inspection_answer(tmp_path: Path)
         comparison_score=3,
         comparison_matches=0,
         prompt_match_score=0,
+        preferred_match_score=0,
     )
 
     assert rank_roma_attempt(
@@ -106,6 +108,7 @@ def test_rank_roma_attempt_prefers_tool_backed_placeholder_over_access_fallback(
         comparison_score=3,
         comparison_matches=0,
         prompt_match_score=3,
+        preferred_match_score=3,
     )
     tool_attempt = RomaAttemptResult(
         result=RomaChatResult(
@@ -121,6 +124,7 @@ def test_rank_roma_attempt_prefers_tool_backed_placeholder_over_access_fallback(
         comparison_score=3,
         comparison_matches=0,
         prompt_match_score=0,
+        preferred_match_score=0,
     )
 
     assert rank_roma_attempt(
@@ -168,6 +172,7 @@ def test_rank_roma_attempt_prefers_tool_backed_review_attempt(tmp_path: Path):
         comparison_score=0,
         comparison_matches=0,
         prompt_match_score=5,
+        preferred_match_score=5,
     )
     tool_attempt = RomaAttemptResult(
         result=RomaChatResult(
@@ -183,6 +188,7 @@ def test_rank_roma_attempt_prefers_tool_backed_review_attempt(tmp_path: Path):
         comparison_score=0,
         comparison_matches=0,
         prompt_match_score=0,
+        preferred_match_score=0,
     )
 
     assert rank_roma_attempt(

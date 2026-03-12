@@ -1,0 +1,19 @@
+{
+  "example_id": "codex-readme-inspection",
+  "prompt": "List the top-level files in this repository and then read the first 20 lines of README.md.",
+  "capture_mode": "codex_exec",
+  "prompt_family": "codex-readme-inspection",
+  "invocation_mode": "chat",
+  "expected_strategy": "tool_oriented",
+  "expected_tool_family": "repo_inspection",
+  "expected_artifact": null,
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "List the top-level files in this repository and then read the first 20 lines of README.md."
+  ],
+  "source_raw": "codex_traces/codex-readme-inspection/raw.jsonl",
+  "source_capture_dir": "codex_traces/codex-readme-inspection"
+}

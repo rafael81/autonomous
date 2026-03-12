@@ -223,6 +223,47 @@ def test_show_eval_suite_prints_cases(monkeypatch, capsys, tmp_path: Path):
     assert "hello\tsimple_answer\tnone\tartifact=none\tmax_score=0\tsay hello briefly" in captured.out
 
 
+def test_show_core_families_prints_configured_rows(monkeypatch, capsys, tmp_path: Path):
+    families_path = tmp_path / "families.json"
+    families_path.write_text(
+        '[{"family_id":"hello","prompt":"say hello briefly","invocation_mode":"chat","expected_strategy":"simple_answer","expected_tool_family":"none","max_score":0,"expected_artifact":null,"notes":"demo"}]',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sys, "argv", ["autonomos", "show-core-families", "--families-path", str(families_path)])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "hello\tchat\tsimple_answer\tnone\tmax_score=0\tsay hello briefly" in captured.out
+
+
+def test_analyze_drift_prints_categories(monkeypatch, capsys, tmp_path: Path):
+    expected = tmp_path / "expected.jsonl"
+    actual = tmp_path / "actual.jsonl"
+    write_jsonl(
+        expected,
+        [
+            {"event_type": "tool_call_request", "payload": {"tool_name": "list_dir"}},
+            {"event_type": "assistant_message", "payload": {"text": "Summary:\n- one"}},
+        ],
+    )
+    write_jsonl(
+        actual,
+        [
+            {"event_type": "tool_call_request", "payload": {"tool_name": "bash"}},
+            {"event_type": "assistant_message", "payload": {"text": "Short answer."}},
+        ],
+    )
+    monkeypatch.setattr(sys, "argv", ["autonomos", "analyze-drift", str(expected), str(actual)])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "tool_routing" in captured.out
+
+
 def test_run_regression_prints_summary(monkeypatch, capsys, tmp_path: Path):
     class Result:
         passed = True
@@ -233,6 +274,8 @@ def test_run_regression_prints_summary(monkeypatch, capsys, tmp_path: Path):
         expected_score = 0
         closest_match_example_id = "hello"
         closest_match_score = 0
+        drift_summary = "No structured drift detected."
+        primary_causes = []
 
     monkeypatch.setattr("autonomos.cli.run_regression_suite", lambda **kwargs: [Result()])
     monkeypatch.setattr("autonomos.cli.write_regression_report", lambda path, results: path)

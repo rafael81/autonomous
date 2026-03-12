@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-03-12T15:56:49+00:00",
+  "command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "현재 프로젝트 구조 분석"
+  ],
+  "returncode": 0,
+  "capture_mode": "codex_exec",
+  "session_dir": "codex_traces/codex-project-structure-analysis",
+  "has_raw_jsonl": true,
+  "has_normalized_jsonl": true,
+  "prompt_family": "codex-project-structure-analysis",
+  "invocation_mode": "chat",
+  "expected_strategy": "tool_oriented",
+  "expected_tool_family": "repo_inspection",
+  "expected_artifact": null,
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "현재 프로젝트 구조 분석"
+  ]
+}

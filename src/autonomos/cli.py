@@ -16,13 +16,21 @@ from .baseline import (
     import_normalized_trace_as_example,
     promote_capture_to_example,
 )
+from .codex_families import (
+    DEFAULT_CORE_PROMPT_FAMILIES_PATH,
+    build_codex_capture_command,
+    build_codex_capture_metadata,
+    get_core_prompt_family,
+    load_core_prompt_families,
+)
 from .codex_exec import build_exec_command, describe_ws_runtime, render_codex_config_toml
 from .compare import compare_normalized_sequences
 from .config import load_ws_auth_config
+from .delta import analyze_trace_drift, format_drift_analysis
 from .examples import build_examples_dataset
 from .exec_normalizer import normalize_exec_events
 from .io import read_jsonl
-from .live_capture import run_capture, save_capture_session
+from .live_capture import run_capture, save_capture_session, save_capture_snapshot
 from .memory import list_sessions
 from .orchestration import write_approval_response, write_request_user_input_response
 from .review import resolve_review_request
@@ -99,6 +107,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_goldens = subparsers.add_parser("list-goldens", help="List repo-tracked golden traces.")
     list_goldens.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
+
+    show_core_families = subparsers.add_parser("show-core-families", help="List the core Codex prompt families used for live trace capture.")
+    show_core_families.add_argument("--families-path", default=str(DEFAULT_CORE_PROMPT_FAMILIES_PATH), help="Path to core prompt family JSON.")
+
+    capture_codex_family = subparsers.add_parser("capture-codex-family", help="Capture a real Codex trace for a configured prompt family.")
+    capture_codex_family.add_argument("family_id", help="Configured family id from core_prompt_families.json")
+    capture_codex_family.add_argument("--families-path", default=str(DEFAULT_CORE_PROMPT_FAMILIES_PATH), help="Path to core prompt family JSON.")
+    capture_codex_family.add_argument("--cwd", default=".", help="Working directory for Codex execution.")
+    capture_codex_family.add_argument("--output-dir", default="codex_traces", help="Directory where canonical Codex trace captures are stored.")
+    capture_codex_family.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
+    capture_codex_family.add_argument("--promote-to-golden", action="store_true", help="Also import the captured normalized trace into the goldens directory.")
+
+    analyze_drift = subparsers.add_parser("analyze-drift", help="Explain structured drift between two normalized traces.")
+    analyze_drift.add_argument("expected", help="Expected normalized.jsonl path.")
+    analyze_drift.add_argument("actual", help="Actual normalized.jsonl path.")
 
     verify_runtime = subparsers.add_parser("verify-runtime", help="Run representative golden prompts and compare runtime behavior.")
     verify_runtime.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
@@ -316,6 +339,55 @@ def main() -> int:
             for row in rows:
                 print(f"{row['example_id']}\t{row['event_count']}\t{row['capture_mode']}\t{row['prompt']}")
             return 0
+        if args.command == "show-core-families":
+            for family in load_core_prompt_families(Path(args.families_path)):
+                print(
+                    f"{family.family_id}\t{family.invocation_mode}\t{family.expected_strategy}\t"
+                    f"{family.expected_tool_family}\tmax_score={family.max_score}\t{family.prompt}"
+                )
+            return 0
+        if args.command == "capture-codex-family":
+            family = get_core_prompt_family(args.family_id, path=Path(args.families_path))
+            command = build_codex_capture_command(family)
+            result = run_capture(command, cwd=Path(args.cwd))
+            capture_dir = Path(args.output_dir) / family.family_id
+            saved = save_capture_snapshot(
+                result=result,
+                prompt=family.prompt,
+                output_dir=capture_dir,
+                capture_mode="codex_exec",
+                metadata=build_codex_capture_metadata(family, command),
+            )
+            print(f"family={family.family_id}")
+            print(f"command={' '.join(result.command)}")
+            print(f"returncode={result.returncode}")
+            print(f"capture_dir={saved.session_dir}")
+            if saved.raw_jsonl_path:
+                print(f"raw_jsonl={saved.raw_jsonl_path}")
+            if saved.normalized_path:
+                print(f"normalized_jsonl={saved.normalized_path}")
+            if args.promote_to_golden and saved.normalized_path:
+                example_dir = import_normalized_trace_as_example(
+                    normalized_path=saved.normalized_path,
+                    output_root=Path(args.goldens_dir),
+                    example_id=family.family_id,
+                    prompt=family.prompt,
+                    meta={
+                        **build_codex_capture_metadata(family, command),
+                        "source_raw": str(saved.raw_jsonl_path) if saved.raw_jsonl_path else None,
+                        "source_capture_dir": str(saved.session_dir),
+                    },
+                )
+                print(f"golden={example_dir}")
+            return result.returncode
+        if args.command == "analyze-drift":
+            analysis = analyze_trace_drift(
+                read_jsonl(Path(args.expected)),
+                read_jsonl(Path(args.actual)),
+            )
+            for line in format_drift_analysis(analysis):
+                print(line)
+            return 0 if not analysis.primary_causes else 1
         if args.command == "show-eval-suite":
             for case in load_eval_suite(Path(args.suite_path)):
                 print(

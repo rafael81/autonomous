@@ -100,6 +100,7 @@ def test_run_regression_suite_uses_expected_checks(monkeypatch, tmp_path: Path):
     assert results[0].passed is True
     assert results[0].expected_score == 0
     assert results[0].artifact_ok is True
+    assert results[0].drift_summary == "No structured drift detected."
 
 
 def test_run_regression_suite_uses_review_resolution_for_review_cases(monkeypatch, tmp_path: Path):
@@ -235,6 +236,8 @@ def test_build_regression_report_lists_failures():
                     "expected_score": 4,
                     "closest_match_example_id": "roma-simple-hello",
                     "closest_match_score": 3,
+                    "drift_summary": "tool_routing: expected tool order=['list_dir'] actual=[]",
+                    "primary_causes": ["tool_routing"],
                     "artifact_ok": False,
                     "session_dir": "captures/demo",
                     "normalized_path": "captures/demo/normalized.jsonl",
@@ -247,3 +250,4 @@ def test_build_regression_report_lists_failures():
     assert "strategy: expected=simple_answer actual=planning" in rows
     assert "artifact: expected=request_user_input present=no" in rows
     assert "expected_golden_score: 4" in rows
+    assert "drift: tool_routing: expected tool order=['list_dir'] actual=[]" in rows

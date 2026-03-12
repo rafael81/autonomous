@@ -44,6 +44,7 @@ def verify_runtime_against_goldens(
             baselines_dir=comparison_root,
             memory_dir=memory_dir,
             session_id=f"verify-{example_id}",
+            target_example_id=example_id,
         )
         results.append(
             VerificationResult(

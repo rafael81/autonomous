@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .app import ChatRunSummary, run_chat
 from .compare import compare_normalized_sequences
+from .delta import analyze_trace_drift
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory
 from .review import resolve_review_request
@@ -47,6 +48,8 @@ class RegressionResult:
     artifact_ok: bool
     score_ok: bool
     passed: bool
+    drift_summary: str
+    primary_causes: list[str]
     final_message: str | None
     normalized_path: str | None
     session_dir: str
@@ -57,13 +60,15 @@ def load_eval_suite(path: Path = DEFAULT_EVAL_SUITE_PATH) -> list[EvalCase]:
     return [EvalCase(**item) for item in payload]
 
 
-def detect_tool_family(normalized_path: Path | None) -> str:
+def detect_tool_family(normalized_path: Path | None, *, invocation_mode: str = "chat") -> str:
     if normalized_path is None or not normalized_path.exists():
         return "none"
     rows = read_jsonl(normalized_path)
     tool_names = [row.get("payload", {}).get("tool_name", "") for row in rows if row.get("event_type") == "tool_call_request"]
     if not tool_names:
         return "none"
+    if invocation_mode == "review":
+        return "review"
     if any(name in {"list_dir", "read_file", "grep_text", "glob_paths", "search_files"} for name in tool_names):
         return "repo_inspection"
     if any(name == "bash" for name in tool_names):
@@ -103,14 +108,16 @@ def run_regression_suite(
             baselines_dir=goldens_dir if goldens_dir.exists() else baselines_dir,
             memory_dir=memory_dir,
             session_id=session_id,
+            target_example_id=case.example_id,
         )
-        actual_tool_family = detect_tool_family(summary.normalized_path)
+        actual_tool_family = detect_tool_family(summary.normalized_path, invocation_mode=case.invocation_mode)
         expected_score = _score_against_expected_golden(case.example_id, summary.normalized_path, goldens_dir)
         strategy_ok = summary.strategy_id == case.expected_strategy
         tool_family_ok = actual_tool_family == case.expected_tool_family
         artifact_present = _artifact_present(case.expected_artifact, summary)
         artifact_ok = case.expected_artifact is None or artifact_present
         score_ok = expected_score is not None and expected_score <= case.max_score
+        drift_analysis = _drift_against_expected_golden(case.example_id, summary.normalized_path, goldens_dir)
         results.append(
             RegressionResult(
                 example_id=case.example_id,
@@ -129,6 +136,8 @@ def run_regression_suite(
                 artifact_ok=artifact_ok,
                 score_ok=score_ok,
                 passed=strategy_ok and tool_family_ok and artifact_ok and score_ok,
+                drift_summary=drift_analysis.summary,
+                primary_causes=drift_analysis.primary_causes,
                 final_message=summary.final_message,
                 normalized_path=str(summary.normalized_path) if summary.normalized_path else None,
                 session_dir=str(summary.session_dir),
@@ -157,6 +166,8 @@ def build_regression_report(results: list[RegressionResult]) -> str:
                 f"- artifact: expected={result.expected_artifact or 'none'} present={'yes' if result.artifact_present else 'no'}",
                 f"- expected_golden_score: {result.expected_score if result.expected_score is not None else '?'}",
                 f"- closest_match: {result.closest_match_example_id or 'none'} score={result.closest_match_score if result.closest_match_score is not None else '?'}",
+                f"- drift: {result.drift_summary}",
+                f"- primary_causes: {', '.join(result.primary_causes) if result.primary_causes else 'none'}",
                 f"- session: {result.session_dir}",
                 f"- normalized: {result.normalized_path or 'none'}",
                 "",
@@ -185,6 +196,15 @@ def _score_against_expected_golden(example_id: str, normalized_path: Path | None
         return None
     result = compare_normalized_sequences(read_jsonl(expected_path), read_jsonl(normalized_path))
     return result.score
+
+
+def _drift_against_expected_golden(example_id: str, normalized_path: Path | None, goldens_dir: Path):
+    if normalized_path is None or not normalized_path.exists():
+        return analyze_trace_drift([], [])
+    expected_path = goldens_dir / example_id / "normalized.jsonl"
+    if not expected_path.exists():
+        return analyze_trace_drift([], read_jsonl(normalized_path))
+    return analyze_trace_drift(read_jsonl(expected_path), read_jsonl(normalized_path))
 
 
 def _artifact_present(expected_artifact: str | None, summary: ChatRunSummary) -> bool:

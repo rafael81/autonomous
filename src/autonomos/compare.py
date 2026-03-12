@@ -14,7 +14,7 @@ class ComparisonResult:
     score: int
 
 
-IGNORED_EVENT_TYPES = {"tool_profile", "assistant_message_delta"}
+IGNORED_EVENT_TYPES = {"tool_profile", "assistant_message_delta", "user_input"}
 
 
 def _core_events(events: list[dict]) -> list[dict]:

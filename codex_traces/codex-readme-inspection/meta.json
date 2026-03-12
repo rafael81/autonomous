@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-03-12T15:52:56+00:00",
+  "command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "List the top-level files in this repository and then read the first 20 lines of README.md."
+  ],
+  "returncode": 0,
+  "capture_mode": "codex_exec",
+  "session_dir": "codex_traces/codex-readme-inspection",
+  "has_raw_jsonl": true,
+  "has_normalized_jsonl": true,
+  "prompt_family": "codex-readme-inspection",
+  "invocation_mode": "chat",
+  "expected_strategy": "tool_oriented",
+  "expected_tool_family": "repo_inspection",
+  "expected_artifact": null,
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "List the top-level files in this repository and then read the first 20 lines of README.md."
+  ]
+}

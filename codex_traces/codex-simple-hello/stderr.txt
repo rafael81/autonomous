@@ -1,0 +1,1 @@
+2026-03-12T15:52:20.922550Z  WARN codex_core::shell_snapshot: Failed to delete shell snapshot at "/Users/user/.codex/shell_snapshots/019ce2bf-b605-7542-9f38-ae4e5122a809.tmp-1773330740742842000": Os { code: 2, kind: NotFound, message: "No such file or directory" }

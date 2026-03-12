@@ -1,0 +1,19 @@
+{
+  "example_id": "codex-simple-hello",
+  "prompt": "say hello briefly",
+  "capture_mode": "codex_exec",
+  "prompt_family": "codex-simple-hello",
+  "invocation_mode": "chat",
+  "expected_strategy": "simple_answer",
+  "expected_tool_family": "none",
+  "expected_artifact": null,
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "say hello briefly"
+  ],
+  "source_raw": "codex_traces/codex-simple-hello/raw.jsonl",
+  "source_capture_dir": "codex_traces/codex-simple-hello"
+}
