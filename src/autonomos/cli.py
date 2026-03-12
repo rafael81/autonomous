@@ -25,6 +25,7 @@ from .io import read_jsonl
 from .live_capture import run_capture, save_capture_session
 from .memory import list_sessions
 from .orchestration import write_approval_response, write_request_user_input_response
+from .review import resolve_review_request
 from .workflow import observe_prompt
 
 DEFAULT_RUNTIME_PROFILE = "roma_ws"
@@ -111,6 +112,20 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--session-id", default="default", help="Logical chat session id.")
     chat.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this run.")
     chat.add_argument("--request-user-input-response", help="Optional request-user-input response JSON to include on this turn.")
+
+    review = subparsers.add_parser("review", help="Run a review-style chat flow against git changes.")
+    review.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
+    review.add_argument("--cwd", default=".", help="Working directory for git and runtime execution.")
+    review.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    review.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    review.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    review.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    review.add_argument("--session-id", default="default", help="Logical chat session id.")
+    review.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this run.")
+    review_target = review.add_mutually_exclusive_group()
+    review_target.add_argument("--base-branch", help="Review changes relative to a base branch.")
+    review_target.add_argument("--commit", help="Review a specific commit.")
+    review.add_argument("--instructions", help="Custom review instructions.")
 
     answer_rui = subparsers.add_parser("answer-user-input", help="Write a response file for a request-user-input artifact.")
     answer_rui.add_argument("request_file", help="Path to request-user-input.json")
@@ -329,6 +344,45 @@ def main() -> int:
                 print(f"[approval-request] {summary.approval_request_path}")
             if summary.memory_path:
                 print(f"[memory] {summary.memory_path}")
+            print(f"[session-id] {session_id}")
+            print(f"[adaptive] {summary.adaptive_notes}")
+            print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+            if summary.closest_match_example_id is not None:
+                print(f"[closest-match] {summary.closest_match_example_id} (score={summary.closest_match_score})")
+            return 0
+        if args.command == "review":
+            session_id = _resolve_session_id(args.session_id, args.new_session)
+            review_request = resolve_review_request(
+                cwd=Path(args.cwd),
+                base_branch=args.base_branch,
+                commit=args.commit,
+                instructions=args.instructions,
+            )
+            summary = run_chat(
+                prompt=review_request.prompt,
+                profile=args.profile,
+                cwd=Path(args.cwd),
+                captures_dir=Path(args.captures_dir),
+                promote_dir=Path(args.promote_dir),
+                baselines_dir=Path(args.baselines_dir),
+                memory_dir=Path(args.memory_dir),
+                session_id=session_id,
+            )
+            if summary.final_message:
+                print(summary.final_message)
+            else:
+                print("No final assistant message was captured.")
+            print(f"[review-target] {review_request.user_facing_hint}")
+            print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+            print(f"[attempts] {', '.join(summary.attempted_strategies)}")
+            print(f"[policy] {summary.orchestration_summary}")
+            print(f"[session] {summary.session_dir}")
+            if summary.normalized_path:
+                print(f"[normalized] {summary.normalized_path}")
+            if summary.promoted_example_dir:
+                print(f"[example] {summary.promoted_example_dir}")
+            if summary.comparison_summary_path:
+                print(f"[comparison] {summary.comparison_summary_path}")
             print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
             print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")

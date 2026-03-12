@@ -31,7 +31,13 @@ def _event_shape(event: dict) -> str:
     if event_type in {"assistant_message", "assistant_message_delta"}:
         return f"{event_type}:{'text' if bool(payload.get('text')) else 'empty'}"
     if event_type == "request_user_input":
-        question_count = len(payload.get("questions", []))
+        questions = payload.get("questions", [])
+        if isinstance(questions, int):
+            question_count = questions
+        elif isinstance(questions, list):
+            question_count = len(questions)
+        else:
+            question_count = 0
         return f"{event_type}:{question_count}"
     if event_type == "exec_approval_request":
         return f"{event_type}:{'present' if payload else 'empty'}"

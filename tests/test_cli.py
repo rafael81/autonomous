@@ -126,3 +126,40 @@ def test_chat_defaults_to_roma_runtime_profile(monkeypatch, capsys, tmp_path: Pa
 
     assert exit_code == 0
     assert captured_kwargs["profile"] == "roma_ws"
+
+
+def test_review_command_uses_resolved_review_prompt(monkeypatch, capsys, tmp_path: Path):
+    captured_kwargs = {}
+
+    class Summary:
+        final_message = "finding"
+        strategy_id = "tool_oriented"
+        baseline_example_id = "example"
+        attempted_strategies = ["tool_oriented"]
+        orchestration_summary = "approval=no, request_user_input=no, retry=no"
+        session_dir = tmp_path / "capture"
+        normalized_path = None
+        promoted_example_dir = None
+        baseline_matches = 0
+        baseline_total = 0
+        comparison_summary_path = None
+        request_user_input_path = None
+        adaptive_notes = "none"
+        memory_path = None
+        approval_request_path = None
+        closest_match_example_id = "codex-project-analysis"
+        closest_match_score = 1
+
+    monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: captured_kwargs.update(kwargs) or Summary())
+    monkeypatch.setattr(
+        "autonomos.cli.resolve_review_request",
+        lambda **kwargs: type("Req", (), {"prompt": "Review the current code changes.", "user_facing_hint": "current changes"})(),
+    )
+    monkeypatch.setattr(sys, "argv", ["autonomos", "review"])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured_kwargs["prompt"] == "Review the current code changes."
+    assert "[review-target] current changes" in captured.out
