@@ -211,7 +211,7 @@ def test_import_capture_golden_uses_prompt_file(monkeypatch, capsys, tmp_path: P
 def test_show_eval_suite_prints_cases(monkeypatch, capsys, tmp_path: Path):
     suite_path = tmp_path / "suite.json"
     suite_path.write_text(
-        '[{"example_id":"hello","prompt":"say hello briefly","invocation_mode":"chat","expected_strategy":"simple_answer","expected_tool_family":"none","max_score":0}]',
+        '[{"example_id":"hello","prompt":"say hello briefly","invocation_mode":"chat","memory_seed":null,"expected_strategy":"simple_answer","expected_tool_family":"none","max_score":0,"expected_artifact":null}]',
         encoding="utf-8",
     )
     monkeypatch.setattr(sys, "argv", ["autonomos", "show-eval-suite", "--suite-path", str(suite_path)])
@@ -220,7 +220,7 @@ def test_show_eval_suite_prints_cases(monkeypatch, capsys, tmp_path: Path):
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "hello\tsimple_answer\tnone\tmax_score=0\tsay hello briefly" in captured.out
+    assert "hello\tsimple_answer\tnone\tartifact=none\tmax_score=0\tsay hello briefly" in captured.out
 
 
 def test_run_regression_prints_summary(monkeypatch, capsys, tmp_path: Path):
@@ -229,6 +229,7 @@ def test_run_regression_prints_summary(monkeypatch, capsys, tmp_path: Path):
         example_id = "hello"
         actual_strategy = "simple_answer"
         actual_tool_family = "none"
+        artifact_present = False
         expected_score = 0
         closest_match_example_id = "hello"
         closest_match_score = 0
@@ -243,4 +244,4 @@ def test_run_regression_prints_summary(monkeypatch, capsys, tmp_path: Path):
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "passed=1 total=1" in captured.out
-    assert "PASS hello: strategy=simple_answer expected_score=0 tool_family=none closest=hello score=0" in captured.out
+    assert "PASS hello: strategy=simple_answer artifact=no expected_score=0 tool_family=none closest=hello score=0" in captured.out

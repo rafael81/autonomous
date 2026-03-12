@@ -320,7 +320,7 @@ def main() -> int:
             for case in load_eval_suite(Path(args.suite_path)):
                 print(
                     f"{case.example_id}\t{case.expected_strategy}\t{case.expected_tool_family}\t"
-                    f"max_score={case.max_score}\t{case.prompt}"
+                    f"artifact={case.expected_artifact or 'none'}\tmax_score={case.max_score}\t{case.prompt}"
                 )
             return 0
         if args.command == "verify-runtime":
@@ -359,6 +359,7 @@ def main() -> int:
                 status = "PASS" if result.passed else "FAIL"
                 print(
                     f"{status} {result.example_id}: strategy={result.actual_strategy} "
+                    f"artifact={'yes' if result.artifact_present else 'no'} "
                     f"expected_score={result.expected_score if result.expected_score is not None else '?'} "
                     f"tool_family={result.actual_tool_family} "
                     f"closest={result.closest_match_example_id or 'none'} "

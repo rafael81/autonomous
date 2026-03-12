@@ -1,0 +1,5 @@
+{
+  "example_id": "interactive-request-user-input",
+  "prompt": "Ask me to choose a direction first.",
+  "capture_mode": "golden_trace"
+}

@@ -1,0 +1,5 @@
+{
+  "example_id": "interactive-multi-turn-context",
+  "prompt": "Based on my earlier note, summarize the current state.",
+  "capture_mode": "golden_trace"
+}

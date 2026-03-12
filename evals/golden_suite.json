@@ -8,6 +8,18 @@
     "max_score": 0
   },
   {
+    "example_id": "interactive-multi-turn-context",
+    "prompt": "Based on my earlier note, summarize the current state.",
+    "invocation_mode": "chat",
+    "memory_seed": [
+      {"role": "user", "text": "I want an observation-first CLI."},
+      {"role": "assistant", "text": "Understood. I will optimize for observation-first behavior."}
+    ],
+    "expected_strategy": "simple_answer",
+    "expected_tool_family": "none",
+    "max_score": 5
+  },
+  {
     "example_id": "roma-readme-inspection",
     "prompt": "List the top-level files in this repository and then read the first 20 lines of README.md.",
     "invocation_mode": "chat",
@@ -30,6 +42,15 @@
     "expected_strategy": "planning",
     "expected_tool_family": "none",
     "max_score": 0
+  },
+  {
+    "example_id": "interactive-request-user-input",
+    "prompt": "Choose the better direction for this plan",
+    "invocation_mode": "chat",
+    "expected_strategy": "planning",
+    "expected_tool_family": "none",
+    "max_score": 5,
+    "expected_artifact": "request_user_input"
   },
   {
     "example_id": "codex-project-analysis",

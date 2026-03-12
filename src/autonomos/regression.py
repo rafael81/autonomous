@@ -10,6 +10,7 @@ from pathlib import Path
 from .app import ChatRunSummary, run_chat
 from .compare import compare_normalized_sequences
 from .io import read_jsonl
+from .memory import MemoryTurn, append_session_memory
 from .review import resolve_review_request
 
 
@@ -24,6 +25,8 @@ class EvalCase:
     expected_strategy: str
     expected_tool_family: str
     max_score: int
+    memory_seed: list[dict[str, str]] | None = None
+    expected_artifact: str | None = None
 
 
 @dataclass(frozen=True)
@@ -34,11 +37,14 @@ class RegressionResult:
     actual_strategy: str
     expected_tool_family: str
     actual_tool_family: str
+    expected_artifact: str | None
+    artifact_present: bool
     expected_score: int | None
     closest_match_example_id: str | None
     closest_match_score: int | None
     strategy_ok: bool
     tool_family_ok: bool
+    artifact_ok: bool
     score_ok: bool
     passed: bool
     final_message: str | None
@@ -81,6 +87,13 @@ def run_regression_suite(
         prompt = case.prompt
         if case.invocation_mode == "review":
             prompt = resolve_review_request(cwd=cwd, instructions=case.prompt).prompt
+        session_id = f"regression-{case.example_id}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
+        if case.memory_seed:
+            append_session_memory(
+                memory_dir,
+                session_id,
+                [MemoryTurn(role=row["role"], text=row["text"]) for row in case.memory_seed],
+            )
         summary: ChatRunSummary = run_chat(
             prompt=prompt,
             profile=profile,
@@ -89,13 +102,14 @@ def run_regression_suite(
             promote_dir=promote_dir / case.example_id,
             baselines_dir=goldens_dir if goldens_dir.exists() else baselines_dir,
             memory_dir=memory_dir,
-            session_id=f"regression-{case.example_id}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}",
+            session_id=session_id,
         )
         actual_tool_family = detect_tool_family(summary.normalized_path)
         expected_score = _score_against_expected_golden(case.example_id, summary.normalized_path, goldens_dir)
-        closest_score = summary.closest_match_score if summary.closest_match_score is not None else 10_000
         strategy_ok = summary.strategy_id == case.expected_strategy
         tool_family_ok = actual_tool_family == case.expected_tool_family
+        artifact_present = _artifact_present(case.expected_artifact, summary)
+        artifact_ok = case.expected_artifact is None or artifact_present
         score_ok = expected_score is not None and expected_score <= case.max_score
         results.append(
             RegressionResult(
@@ -105,13 +119,16 @@ def run_regression_suite(
                 actual_strategy=summary.strategy_id,
                 expected_tool_family=case.expected_tool_family,
                 actual_tool_family=actual_tool_family,
+                expected_artifact=case.expected_artifact,
+                artifact_present=artifact_present,
                 expected_score=expected_score,
                 closest_match_example_id=summary.closest_match_example_id,
                 closest_match_score=summary.closest_match_score,
                 strategy_ok=strategy_ok,
                 tool_family_ok=tool_family_ok,
+                artifact_ok=artifact_ok,
                 score_ok=score_ok,
-                passed=strategy_ok and tool_family_ok and score_ok,
+                passed=strategy_ok and tool_family_ok and artifact_ok and score_ok,
                 final_message=summary.final_message,
                 normalized_path=str(summary.normalized_path) if summary.normalized_path else None,
                 session_dir=str(summary.session_dir),
@@ -137,6 +154,7 @@ def build_regression_report(results: list[RegressionResult]) -> str:
                 f"- prompt: {result.prompt}",
                 f"- strategy: expected={result.expected_strategy} actual={result.actual_strategy}",
                 f"- tool_family: expected={result.expected_tool_family} actual={result.actual_tool_family}",
+                f"- artifact: expected={result.expected_artifact or 'none'} present={'yes' if result.artifact_present else 'no'}",
                 f"- expected_golden_score: {result.expected_score if result.expected_score is not None else '?'}",
                 f"- closest_match: {result.closest_match_example_id or 'none'} score={result.closest_match_score if result.closest_match_score is not None else '?'}",
                 f"- session: {result.session_dir}",
@@ -167,3 +185,11 @@ def _score_against_expected_golden(example_id: str, normalized_path: Path | None
         return None
     result = compare_normalized_sequences(read_jsonl(expected_path), read_jsonl(normalized_path))
     return result.score
+
+
+def _artifact_present(expected_artifact: str | None, summary: ChatRunSummary) -> bool:
+    if expected_artifact == "request_user_input":
+        return summary.request_user_input_path is not None
+    if expected_artifact == "approval":
+        return summary.approval_request_path is not None
+    return False
