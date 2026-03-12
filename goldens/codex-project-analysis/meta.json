@@ -1,0 +1,5 @@
+{
+  "example_id": "codex-project-analysis",
+  "prompt": "현재 내 프로젝트 분석",
+  "capture_mode": "golden_trace"
+}

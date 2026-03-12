@@ -1,7 +1,12 @@
 import json
 from pathlib import Path
 
-from autonomos.baseline import compare_capture_against_baselines, promote_capture_to_example
+from autonomos.baseline import (
+    compare_capture_against_baselines,
+    format_comparison_results,
+    import_normalized_trace_as_example,
+    promote_capture_to_example,
+)
 from autonomos.io import write_jsonl
 
 
@@ -42,3 +47,35 @@ def test_compare_capture_against_baselines_finds_match(tmp_path: Path):
 
     assert len(results) == 1
     assert results[0].matches is True
+
+
+def test_import_normalized_trace_as_example_creates_golden_shape(tmp_path: Path):
+    normalized_path = tmp_path / "trace.jsonl"
+    rows = [
+        {"ts": "1", "source": "fixture", "channel": "x", "event_type": "session_start", "turn_id": None, "message_id": None, "call_id": None, "payload": {}, "raw": {}},
+    ]
+    write_jsonl(normalized_path, rows)
+
+    example_dir = import_normalized_trace_as_example(
+        normalized_path=normalized_path,
+        output_root=tmp_path / "goldens",
+        example_id="codex-1",
+        prompt="Analyze the repository.",
+    )
+
+    assert (example_dir / "prompt.txt").exists()
+    assert (example_dir / "normalized.jsonl").exists()
+    assert (example_dir / "observed.jsonl").exists()
+    assert (example_dir / "meta.json").exists()
+    assert (example_dir / "report.md").exists()
+
+
+def test_format_comparison_results_sorts_by_score():
+    lines = format_comparison_results(
+        [
+            type("Obj", (), {"example_id": "b", "matches": False, "summary": "diff", "details": ["later"], "score": 3})(),
+            type("Obj", (), {"example_id": "a", "matches": True, "summary": "matched", "details": [], "score": 0})(),
+        ]
+    )
+
+    assert lines[0].startswith("MATCH a: score=0")

@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .app import run_chat
-from .baseline import compare_capture_against_baselines, promote_capture_to_example
+from .baseline import compare_capture_against_baselines, format_comparison_results, import_normalized_trace_as_example, promote_capture_to_example
 from .codex_exec import build_exec_command, describe_ws_runtime, render_codex_config_toml
 from .compare import compare_normalized_sequences
 from .config import load_ws_auth_config
@@ -68,6 +68,13 @@ def build_parser() -> argparse.ArgumentParser:
     compare_baselines = subparsers.add_parser("compare-baselines", help="Compare a normalized capture against all baseline examples.")
     compare_baselines.add_argument("normalized", help="Path to normalized capture JSONL.")
     compare_baselines.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    compare_baselines.add_argument("--top", type=int, default=5, help="Maximum number of comparisons to print.")
+
+    import_golden = subparsers.add_parser("import-golden", help="Import a normalized trace as a repo-tracked golden example.")
+    import_golden.add_argument("normalized", help="Path to normalized JSONL trace.")
+    import_golden.add_argument("example_id", help="Golden example id.")
+    import_golden.add_argument("prompt", help="Prompt associated with the trace.")
+    import_golden.add_argument("--output-dir", default="goldens", help="Directory where golden traces are stored.")
 
     observe = subparsers.add_parser("observe", help="Run the full observation pipeline: capture, normalize, promote, compare.")
     observe.add_argument("prompt", help="Prompt to send to codex exec.")
@@ -192,6 +199,15 @@ def main() -> int:
             )
             print(f"promoted capture to {example_dir}")
             return 0
+        if args.command == "import-golden":
+            example_dir = import_normalized_trace_as_example(
+                normalized_path=Path(args.normalized),
+                output_root=Path(args.output_dir),
+                example_id=args.example_id,
+                prompt=args.prompt,
+            )
+            print(f"imported golden trace to {example_dir}")
+            return 0
         if args.command == "compare-baselines":
             results = compare_capture_against_baselines(
                 normalized_path=Path(args.normalized),
@@ -199,9 +215,8 @@ def main() -> int:
             )
             matched = [result for result in results if result.matches]
             print(f"matched={len(matched)} total={len(results)}")
-            for result in results:
-                status = "MATCH" if result.matches else "DIFF"
-                print(f"{status} {result.example_id}: {result.summary}")
+            for line in format_comparison_results(results, limit=args.top):
+                print(line)
             return 0 if matched else 1
         if args.command == "observe":
             outcome = observe_prompt(

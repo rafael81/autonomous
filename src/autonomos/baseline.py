@@ -21,6 +21,20 @@ class BaselineComparison:
     score: int
 
 
+def format_comparison_results(results: list[BaselineComparison], limit: int | None = None) -> list[str]:
+    ordered = sorted(results, key=lambda item: (item.score, not item.matches, item.example_id))
+    if limit is not None:
+        ordered = ordered[:limit]
+    lines: list[str] = []
+    for result in ordered:
+        status = "MATCH" if result.matches else "DIFF"
+        line = f"{status} {result.example_id}: score={result.score} {result.summary}"
+        if result.details:
+            line += f" ({result.details[0]})"
+        lines.append(line)
+    return lines
+
+
 def promote_capture_to_example(
     *,
     capture_dir: Path,
@@ -69,6 +83,41 @@ def promote_capture_to_example(
         notes=f"Promoted from capture session {capture_dir.name}. stderr_exists={stderr_path.exists()}",
     )
     (example_dir / "report.md").write_text(report + "\n", encoding="utf-8")
+    return example_dir
+
+
+def import_normalized_trace_as_example(
+    *,
+    normalized_path: Path,
+    output_root: Path,
+    example_id: str,
+    prompt: str,
+    meta: dict | None = None,
+) -> Path:
+    example_dir = output_root / example_id
+    example_dir.mkdir(parents=True, exist_ok=True)
+    normalized = read_jsonl(normalized_path)
+    (example_dir / "prompt.txt").write_text(prompt + "\n", encoding="utf-8")
+    shutil.copy2(normalized_path, example_dir / "normalized.jsonl")
+    (example_dir / "observed.jsonl").write_text(normalized_path.read_text(encoding="utf-8"), encoding="utf-8")
+    payload = {
+        "example_id": example_id,
+        "prompt": prompt,
+        "capture_mode": "golden_trace",
+    }
+    if meta:
+        payload.update(meta)
+    (example_dir / "meta.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (example_dir / "report.md").write_text(
+        build_report(
+            example_id=example_id,
+            prompt=prompt,
+            normalized_events=normalized,
+            notes="Imported from a real normalized trace.",
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return example_dir
 
 
