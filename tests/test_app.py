@@ -34,3 +34,16 @@ def test_extract_final_message_synthesizes_when_runtime_returns_empty_placeholde
     assert "Observed workspace structure:" in message
     assert "list_dir" in message
     assert "read_file" in message
+
+
+def test_extract_final_message_used_for_roma_final_output(tmp_path: Path):
+    normalized = tmp_path / "normalized.jsonl"
+    write_jsonl(
+        normalized,
+        [
+            {"ts": "1", "source": "fixture", "channel": "tool", "event_type": "tool_call_result", "turn_id": "t1", "message_id": None, "call_id": "c1", "payload": {"tool_name": "list_dir", "output": "file\tREADME.md"}, "raw": {}},
+            {"ts": "2", "source": "fixture", "channel": "assistant", "event_type": "assistant_message", "turn_id": "t1", "message_id": "m1", "call_id": None, "payload": {"text": "요청을 처리했지만 텍스트 응답이 없습니다."}, "raw": {}},
+        ],
+    )
+
+    assert extract_final_message(normalized) != "요청을 처리했지만 텍스트 응답이 없습니다."

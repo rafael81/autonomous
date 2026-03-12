@@ -101,6 +101,12 @@ bd close bd-42 --reason "Completed" --json
    - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
 5. **Complete**: `bd close <id> --reason "Done"`
 
+### Core Execution Principle
+
+- If the user asks to keep going until a feature or task is complete, do not stop at a progress report.
+- Even when work naturally feels like a status update, continue into the next concrete implementation step until the claimed issue is complete or blocked by a real external dependency.
+- Prefer finishing a meaningful vertical slice with tests and a checkpoint commit over handing back a list of remaining work.
+
 ### Auto-Sync
 
 bd automatically syncs with git:

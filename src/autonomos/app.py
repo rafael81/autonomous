@@ -123,7 +123,7 @@ def run_chat(
         best_attempt = min(attempts, key=lambda item: rank_roma_attempt(prompt, item))
         strategy = best_attempt.strategy
         result = best_attempt.result
-        final_message = codexify_message(result.final_message)
+        final_message = codexify_message(extract_final_message(result.normalized_path) or result.final_message)
         comparison_results = (
             compare_capture_against_baselines(
                 normalized_path=result.normalized_path,

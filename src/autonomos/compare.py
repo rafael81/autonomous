@@ -14,6 +14,13 @@ class ComparisonResult:
     score: int
 
 
+IGNORED_EVENT_TYPES = {"tool_profile", "assistant_message_delta"}
+
+
+def _core_events(events: list[dict]) -> list[dict]:
+    return [event for event in events if event.get("event_type") not in IGNORED_EVENT_TYPES]
+
+
 def _tool_signature(events: list[dict]) -> list[str]:
     signatures: list[str] = []
     for event in events:
@@ -55,6 +62,8 @@ def _paired_tool_counts(events: list[dict]) -> Counter:
 
 def compare_normalized_sequences(expected: list[dict], actual: list[dict]) -> ComparisonResult:
     details: list[str] = []
+    expected = _core_events(expected)
+    actual = _core_events(actual)
     expected_types = [event["event_type"] for event in expected]
     actual_types = [event["event_type"] for event in actual]
     expected_shapes = [_event_shape(event) for event in expected]

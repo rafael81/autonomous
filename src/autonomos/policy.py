@@ -143,10 +143,13 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
     tool_rows = [row for row in rows if row.get("event_type") in {"tool_call_request", "tool_call_result"}]
     tool_names = [row.get("payload", {}).get("tool_name", "") for row in tool_rows]
     final_message = extract_attempt_message(rows)
+    inspection_without_tools_penalty = 0
     substantive_evidence_penalty = 0
     planning_penalty = 0
 
     preferred_tool_penalty = 0
+    if policy.prompt_mode in {"structure_inspection", "repository_inspection", "inspection_and_verification"} and not tool_rows:
+        inspection_without_tools_penalty = 1
     if policy.prompt_mode.startswith("repository_") or policy.prompt_mode == "inspection_and_verification":
         if not any(name in policy.preferred_tools for name in tool_names):
             preferred_tool_penalty = 1
@@ -174,6 +177,7 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
     return (
         comparison_matches == 0,
         near_golden_bonus,
+        inspection_without_tools_penalty,
         access_fallback_penalty,
         empty_fallback_penalty,
         planning_penalty,
@@ -188,8 +192,29 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
 def extract_attempt_message(rows: list[dict]) -> str:
     for row in reversed(rows):
         if row.get("event_type") == "assistant_message":
-            return row.get("payload", {}).get("text", "") or ""
+            text = row.get("payload", {}).get("text", "") or ""
+            if is_empty_runtime_fallback(text):
+                synthesized = _synthesize_tool_result_summary(rows)
+                return synthesized or text
+            return text
     return ""
+
+
+def _synthesize_tool_result_summary(rows: list[dict]) -> str | None:
+    tool_results = [row for row in rows if row.get("event_type") == "tool_call_result"]
+    if not tool_results:
+        return None
+    parts: list[str] = []
+    for row in tool_results[:3]:
+        tool_name = row.get("payload", {}).get("tool_name", "tool")
+        output = str(row.get("payload", {}).get("output", "")).strip()
+        if not output:
+            continue
+        preview = "; ".join(output.splitlines()[:3])
+        parts.append(f"{tool_name}: {preview}")
+    if not parts:
+        return None
+    return "Observed via tools. " + " | ".join(parts)
 
 
 def looks_like_access_fallback(text: str) -> bool:

@@ -26,6 +26,7 @@ from .live_capture import run_capture, save_capture_session
 from .memory import list_sessions
 from .orchestration import write_approval_response, write_request_user_input_response
 from .review import resolve_review_request
+from .verification import format_verification_results, verify_runtime_against_goldens
 from .workflow import observe_prompt
 
 DEFAULT_RUNTIME_PROFILE = "roma_ws"
@@ -91,6 +92,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_goldens = subparsers.add_parser("list-goldens", help="List repo-tracked golden traces.")
     list_goldens.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
+
+    verify_runtime = subparsers.add_parser("verify-runtime", help="Run representative golden prompts and compare runtime behavior.")
+    verify_runtime.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
+    verify_runtime.add_argument("--cwd", default=".", help="Working directory for runtime execution.")
+    verify_runtime.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    verify_runtime.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    verify_runtime.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    verify_runtime.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    verify_runtime.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
 
     observe = subparsers.add_parser("observe", help="Run the full observation pipeline: capture, normalize, promote, compare.")
     observe.add_argument("prompt", help="Prompt to send to codex exec.")
@@ -268,6 +278,21 @@ def main() -> int:
             for row in rows:
                 print(f"{row['example_id']}\t{row['event_count']}\t{row['capture_mode']}\t{row['prompt']}")
             return 0
+        if args.command == "verify-runtime":
+            results = verify_runtime_against_goldens(
+                profile=args.profile,
+                cwd=Path(args.cwd),
+                captures_dir=Path(args.captures_dir),
+                promote_dir=Path(args.promote_dir),
+                baselines_dir=Path(args.baselines_dir),
+                memory_dir=Path(args.memory_dir),
+                goldens_dir=Path(args.goldens_dir),
+            )
+            matched = len([result for result in results if result.matched_expected_golden])
+            print(f"matched={matched} total={len(results)}")
+            for line in format_verification_results(results):
+                print(line)
+            return 0 if matched == len(results) else 1
         if args.command == "observe":
             outcome = observe_prompt(
                 prompt=args.prompt,
