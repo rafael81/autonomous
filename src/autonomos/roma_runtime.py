@@ -36,6 +36,7 @@ class RomaAttemptResult:
     strategy: StrategyDecision
     comparison_score: int
     comparison_matches: int
+    prompt_match_score: int = 10_000
 
 
 def run_roma_chat(

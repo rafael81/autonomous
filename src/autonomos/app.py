@@ -6,7 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .adaptive import AdaptiveSummary, summarize_attempt_progress
-from .baseline import best_comparison_match, compare_capture_against_baselines, format_comparison_results, promote_capture_to_example
+from .baseline import (
+    best_comparison_match,
+    compare_capture_against_baselines,
+    find_examples_for_prompt,
+    format_comparison_results,
+    promote_capture_to_example,
+)
 from .instructions import build_full_instructions, render_user_request
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory, load_session_memory, render_memory_context
@@ -68,6 +74,7 @@ def run_chat(
         user_input_prefix = render_request_user_input_response(request_user_input_response_path)
         approval_prefix = render_approval_response(approval_response_path)
         memory_prefix = render_memory_context(memory_turns)
+        prompt_matched_examples = find_examples_for_prompt(baselines_dir, prompt) if baselines_dir.exists() else []
         for attempt_index, strategy in enumerate(candidate_strategies(prompt), start=1):
             policy = infer_prompt_policy(prompt, strategy)
             instructions = build_full_instructions(strategy, policy)
@@ -108,6 +115,10 @@ def run_chat(
                     strategy=strategy,
                     comparison_score=min((item.score for item in comparison_results), default=10_000),
                     comparison_matches=len([item for item in comparison_results if item.matches]),
+                    prompt_match_score=min(
+                        (item.score for item in comparison_results if item.example_id in prompt_matched_examples),
+                        default=10_000,
+                    ),
                 )
             )
             if _should_short_circuit_roma_attempts(prompt=prompt, attempt=attempts[-1]):

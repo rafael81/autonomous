@@ -64,6 +64,21 @@ def build_golden_registry(goldens_root: Path) -> list[dict[str, object]]:
     return rows
 
 
+def find_examples_for_prompt(root: Path, prompt: str) -> list[str]:
+    needle = prompt.strip()
+    if not needle or not root.exists():
+        return []
+    matches: list[str] = []
+    for example_dir in sorted(path for path in root.iterdir() if path.is_dir()):
+        prompt_path = example_dir / "prompt.txt"
+        if not prompt_path.exists():
+            continue
+        candidate = prompt_path.read_text(encoding="utf-8").strip()
+        if candidate == needle:
+            matches.append(example_dir.name)
+    return matches
+
+
 def promote_capture_to_example(
     *,
     capture_dir: Path,

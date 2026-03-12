@@ -41,6 +41,7 @@ def test_rank_roma_attempt_prefers_tool_backed_inspection_answer(tmp_path: Path)
         strategy=choose_strategy("Make a plan for checking this repository"),
         comparison_score=2,
         comparison_matches=0,
+        prompt_match_score=2,
     )
     tool_attempt = RomaAttemptResult(
         result=RomaChatResult(
@@ -55,6 +56,7 @@ def test_rank_roma_attempt_prefers_tool_backed_inspection_answer(tmp_path: Path)
         strategy=choose_strategy("Check what files are in the repository"),
         comparison_score=3,
         comparison_matches=0,
+        prompt_match_score=0,
     )
 
     assert rank_roma_attempt(
@@ -103,6 +105,7 @@ def test_rank_roma_attempt_prefers_tool_backed_placeholder_over_access_fallback(
         strategy=choose_strategy("Make a plan for checking this repository"),
         comparison_score=3,
         comparison_matches=0,
+        prompt_match_score=3,
     )
     tool_attempt = RomaAttemptResult(
         result=RomaChatResult(
@@ -117,6 +120,7 @@ def test_rank_roma_attempt_prefers_tool_backed_placeholder_over_access_fallback(
         strategy=choose_strategy("Check what files are in the repository"),
         comparison_score=3,
         comparison_matches=0,
+        prompt_match_score=0,
     )
 
     assert rank_roma_attempt(
@@ -163,6 +167,7 @@ def test_rank_roma_attempt_prefers_tool_backed_review_attempt(tmp_path: Path):
         strategy=choose_strategy("Make a plan for reviewing these changes"),
         comparison_score=0,
         comparison_matches=0,
+        prompt_match_score=5,
     )
     tool_attempt = RomaAttemptResult(
         result=RomaChatResult(
@@ -177,6 +182,7 @@ def test_rank_roma_attempt_prefers_tool_backed_review_attempt(tmp_path: Path):
         strategy=choose_strategy("Review only the current CLI changes."),
         comparison_score=0,
         comparison_matches=0,
+        prompt_match_score=0,
     )
 
     assert rank_roma_attempt(
