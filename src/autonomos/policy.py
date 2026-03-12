@@ -55,22 +55,17 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             "structure",
         )
     )
-    project_analysis_prompt = any(
+    inspection_prompt = any(
         token in text
         for token in (
+            "repository",
+            "repo",
             "project analysis",
             "analyze this project",
             "analyze my project",
             "현재 내 프로젝트 분석",
             "현재 프로젝트 분석",
             "프로젝트 분석",
-        )
-    )
-    inspection_prompt = any(
-        token in text
-        for token in (
-            "repository",
-            "repo",
             "project structure",
             "프로젝트 구조",
             "structure",
@@ -95,17 +90,6 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             excluded_roots=DEFAULT_POLICY.excluded_roots,
             stop_after_evidence=3,
             preferred_tools=("bash", "glob_paths", "grep_text", "read_file"),
-            fallback_tool="bash",
-        )
-    if project_analysis_prompt:
-        return PromptPolicy(
-            prompt_mode="project_analysis",
-            tool_budget=10,
-            max_repeated_tool_calls=3,
-            preferred_roots=("README.md", "pyproject.toml", "src", "tests", "scripts"),
-            excluded_roots=DEFAULT_POLICY.excluded_roots,
-            stop_after_evidence=6,
-            preferred_tools=("bash", "read_file", "grep_text", "glob_paths", "list_dir"),
             fallback_tool="bash",
         )
     if structure_prompt:
@@ -166,17 +150,15 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
     if policy.prompt_mode.startswith("repository_") or policy.prompt_mode == "inspection_and_verification":
         if not any(name in policy.preferred_tools for name in tool_names):
             preferred_tool_penalty = 1
-    if policy.prompt_mode == "project_analysis":
+    if policy.prompt_mode == "structure_inspection":
+        if not any(name in {"list_dir", "glob_paths", "read_file"} for name in tool_names):
+            substantive_evidence_penalty = 1
+    elif policy.prompt_mode == "repository_inspection":
         if not tool_rows:
             substantive_evidence_penalty = 1
         lowered = final_message.lower()
         if any(token in lowered for token in ("보류", "실행 계획", "붙여주시면", "실행해야 할", "분석 계획")):
             planning_penalty = 1
-        if "pytest" in lowered or "passed" in lowered or "테스트" in lowered:
-            substantive_evidence_penalty = 0
-    elif policy.prompt_mode == "structure_inspection":
-        if not any(name in {"list_dir", "glob_paths", "read_file"} for name in tool_names):
-            substantive_evidence_penalty = 1
     elif policy.prompt_mode == "code_review":
         lowered = final_message.lower()
         if "prioritized" not in lowered and "risk" not in lowered and "finding" not in lowered:

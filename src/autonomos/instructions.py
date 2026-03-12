@@ -44,17 +44,15 @@ def build_mode_instructions(strategy: StrategyDecision, policy: PromptPolicy) ->
     elif strategy.strategy_id == "safety_refusal":
         lines.append("Refuse unsafe assistance briefly and redirect to a safer alternative.")
 
-    if policy.prompt_mode == "project_analysis":
-        lines.append("Use a staged analysis flow: scan the repo, read key docs/config, inspect core modules, then validate if practical.")
-        lines.append("Final output should summarize architecture, runtime flow, strengths, and concrete risks.")
-    elif policy.prompt_mode == "structure_inspection":
+    if policy.prompt_mode == "structure_inspection":
         lines.append("Focus on repository layout, module boundaries, and key entry points.")
         lines.append("Prefer a quick structural scan over deep validation.")
+    elif policy.prompt_mode == "repository_inspection":
+        lines.append("Inspect the repository from observed evidence and summarize the most relevant files or modules.")
+        lines.append("Prefer focused reads over deep or exhaustive validation.")
     elif policy.prompt_mode == "code_review":
         lines.append("Act as a reviewer for the proposed change or current diff.")
         lines.append("Return prioritized, actionable findings and keep the focus on discrete bugs or risks.")
-    elif policy.prompt_mode == "repository_inspection":
-        lines.append("Prioritize repository structure and key files over broad exploration.")
     elif policy.prompt_mode == "verification":
         lines.append("Prioritize verification evidence and report concrete results.")
 

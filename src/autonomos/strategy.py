@@ -106,12 +106,7 @@ def candidate_strategies(prompt: str, limit: int = 3) -> list[StrategyDecision]:
     if any(
         token in text
         for token in (
-            "project analysis",
-            "analyze this project",
-            "analyze my project",
             "현재 내 프로젝트 분석",
-            "현재 프로젝트 분석",
-            "프로젝트 분석",
             "현재 프로젝트 구조 분석",
             "프로젝트 구조 분석",
         )
