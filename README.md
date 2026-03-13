@@ -56,7 +56,9 @@ Run the user-facing chat flow:
 ./.venv/bin/autonomos chat "say hello briefly"
 ```
 
-The user-facing runtime defaults to `roma_ws`, so `chat`, `resume`, and `repl` use the ChatGPT websocket bridge unless you override `--profile`.
+The user-facing runtime defaults to `roma_ws`, and `chat`, `resume`, `review`, and `repl`
+now compare against `goldens/` by default so the visible score output matches the
+real Codex parity axis instead of the older synthetic examples.
 
 Compare a normalized trace against all baselines:
 
@@ -73,6 +75,38 @@ Show the curated golden regression suite:
 Run the golden regression suite and write reports:
 
 ```bash
+./.venv/bin/autonomos run-regression \
+  --goldens-dir goldens \
+  --suite-path evals/golden_suite.json \
+  --report-path .tmp/regression/report.md \
+  --json-path .tmp/regression/results.json
+```
+
+## Verify parity
+
+Use this short loop to confirm the default runtime is still aligned with the visible
+Codex golden families:
+
+```bash
+./.venv/bin/autonomos chat "say hello briefly" --new-session
+./.venv/bin/autonomos chat "List the top-level files in this repository and then read the first 20 lines of README.md." --new-session
+./.venv/bin/autonomos review --new-session
+```
+
+For a healthy run, focus on these fields:
+
+- `[strategy]`: the chosen runtime strategy and the Codex family reference it is targeting
+- `[parity]`: whether the run exactly matched the intended golden or still drifted from it
+- `[coverage]`: how many stored goldens share the observed structure
+- `[intended-golden]`: the exact golden prompt family the run is supposed to resemble
+- `[closest-match]`: the nearest stored golden after comparison
+- `[drift]`: the highest-signal mismatch summary when parity is not exact
+- `[drift-causes]`: the structured mismatch categories to tune next
+
+To inspect the full gate used during development:
+
+```bash
+./.venv/bin/autonomos show-eval-suite
 ./.venv/bin/autonomos run-regression \
   --goldens-dir goldens \
   --suite-path evals/golden_suite.json \
