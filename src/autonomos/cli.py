@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -125,6 +126,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not bypass approvals/sandbox during capture. Use this for families that need real approval artifacts.",
     )
+    capture_runtime_family = subparsers.add_parser(
+        "capture-runtime-family",
+        help="Capture a runtime trace for a configured prompt family, auto-resuming approval or user-input artifacts when they appear.",
+    )
+    capture_runtime_family.add_argument("family_id", help="Configured family id from core_prompt_families.json")
+    capture_runtime_family.add_argument("--families-path", default=str(DEFAULT_CORE_PROMPT_FAMILIES_PATH), help="Path to core prompt family JSON.")
+    capture_runtime_family.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
+    capture_runtime_family.add_argument("--cwd", default=".", help="Working directory for runtime execution.")
+    capture_runtime_family.add_argument("--output-dir", default="codex_traces", help="Directory where canonical runtime trace captures are stored.")
+    capture_runtime_family.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
+    capture_runtime_family.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    capture_runtime_family.add_argument("--captures-dir", default="captures", help="Directory where runtime capture sessions are stored.")
+    capture_runtime_family.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    capture_runtime_family.add_argument("--promote-to-golden", action="store_true", help="Also import the captured normalized trace into the goldens directory.")
 
     analyze_drift = subparsers.add_parser("analyze-drift", help="Explain structured drift between two normalized traces.")
     analyze_drift.add_argument("expected", help="Expected normalized.jsonl path.")
@@ -390,6 +405,20 @@ def main() -> int:
                 )
                 print(f"golden={example_dir}")
             return result.returncode
+        if args.command == "capture-runtime-family":
+            family = get_core_prompt_family(args.family_id, path=Path(args.families_path))
+            exit_code = _capture_runtime_family(
+                family=family,
+                profile=args.profile,
+                cwd=Path(args.cwd),
+                output_dir=Path(args.output_dir),
+                goldens_dir=Path(args.goldens_dir),
+                memory_dir=Path(args.memory_dir),
+                captures_dir=Path(args.captures_dir),
+                promote_dir=Path(args.promote_dir),
+                promote_to_golden=args.promote_to_golden,
+            )
+            return exit_code
         if args.command == "analyze-drift":
             analysis = analyze_trace_drift(
                 read_jsonl(Path(args.expected)),
@@ -698,6 +727,122 @@ def _handle_inline_request_user_input(request_path: Path) -> Path | None:
         selected_option=selected,
         notes=notes,
     )
+
+
+def _write_default_request_user_input_response(request_path: Path) -> Path:
+    payload = json.loads(request_path.read_text(encoding="utf-8"))
+    questions = payload.get("questions", [])
+    question = questions[0] if questions else {}
+    options = question.get("options", [])
+    selected = options[0]["label"] if options else "default"
+    return write_request_user_input_response(
+        request_path=request_path,
+        selected_option=selected,
+        notes="Auto-selected during runtime family capture.",
+    )
+
+
+def _write_default_approval_response(request_path: Path) -> Path:
+    payload = json.loads(request_path.read_text(encoding="utf-8"))
+    options = payload.get("options", [])
+    selected = options[0]["label"] if options else "Approve"
+    return write_approval_response(
+        request_path=request_path,
+        decision=selected,
+        notes="Auto-approved during runtime family capture.",
+    )
+
+
+def _capture_runtime_family(
+    *,
+    family,
+    profile: str,
+    cwd: Path,
+    output_dir: Path,
+    goldens_dir: Path,
+    memory_dir: Path,
+    captures_dir: Path,
+    promote_dir: Path,
+    promote_to_golden: bool,
+) -> int:
+    session_id = f"capture-{family.family_id}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
+    summary = run_chat(
+        prompt=family.prompt,
+        profile=profile,
+        cwd=cwd,
+        captures_dir=captures_dir / family.family_id,
+        promote_dir=promote_dir / family.family_id,
+        baselines_dir=goldens_dir,
+        memory_dir=memory_dir,
+        session_id=session_id,
+        target_example_id=family.family_id,
+    )
+    if summary.request_user_input_path:
+        response_path = _write_default_request_user_input_response(summary.request_user_input_path)
+        summary = run_chat(
+            prompt="continue",
+            profile=profile,
+            cwd=cwd,
+            captures_dir=captures_dir / family.family_id,
+            promote_dir=promote_dir / family.family_id,
+            baselines_dir=goldens_dir,
+            memory_dir=memory_dir,
+            session_id=session_id,
+            request_user_input_response_path=response_path,
+            target_example_id=family.family_id,
+        )
+    if summary.approval_request_path:
+        response_path = _write_default_approval_response(summary.approval_request_path)
+        summary = run_chat(
+            prompt="continue",
+            profile=profile,
+            cwd=cwd,
+            captures_dir=captures_dir / family.family_id,
+            promote_dir=promote_dir / family.family_id,
+            baselines_dir=goldens_dir,
+            memory_dir=memory_dir,
+            session_id=session_id,
+            approval_response_path=response_path,
+            target_example_id=family.family_id,
+        )
+    capture_dir = output_dir / family.family_id
+    if capture_dir.exists():
+        shutil.rmtree(capture_dir)
+    shutil.copytree(summary.session_dir, capture_dir)
+    meta_path = capture_dir / "meta.json"
+    meta = {}
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta.update(
+        {
+            **build_codex_capture_metadata(family, ["autonomos", "capture-runtime-family", family.family_id]),
+            "capture_mode": "runtime_chat",
+            "source_capture_dir": str(summary.session_dir),
+            "session_id": session_id,
+            "approval_request_present": summary.approval_request_path is not None,
+            "request_user_input_present": summary.request_user_input_path is not None,
+        }
+    )
+    meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"family={family.family_id}")
+    print(f"session_id={session_id}")
+    print(f"capture_dir={capture_dir}")
+    if summary.normalized_path:
+        print(f"normalized_jsonl={capture_dir / 'normalized.jsonl'}")
+    if summary.approval_request_path:
+        print("approval_artifact=present")
+    if summary.request_user_input_path:
+        print("request_user_input_artifact=present")
+    if promote_to_golden and summary.normalized_path:
+        example_dir = import_normalized_trace_as_example(
+            normalized_path=capture_dir / "normalized.jsonl",
+            output_root=goldens_dir,
+            example_id=family.family_id,
+            prompt=family.prompt,
+            meta=meta,
+        )
+        print(f"golden={example_dir}")
+    return 0
 
 
 def _handle_inline_approval(request_path: Path) -> Path | None:

@@ -1,18 +1,26 @@
 {
   "example_id": "codex-approval-request",
   "prompt": "Before making a risky filesystem change, ask for approval.",
-  "capture_mode": "codex_exec",
+  "capture_mode": "runtime_chat",
+  "captured_at": "2026-03-13T15:54:55+00:00",
+  "runtime": "roma_bridge",
+  "returncode": 0,
+  "has_raw_jsonl": true,
+  "has_normalized_jsonl": true,
+  "cwd": ".",
+  "model": "gpt-5.3-codex-spark",
   "prompt_family": "codex-approval-request",
   "invocation_mode": "chat",
   "expected_strategy": "tool_oriented",
   "expected_tool_family": "approval",
   "expected_artifact": "approval",
   "capture_command": [
-    "codex",
-    "exec",
-    "--json",
-    "Before making a risky filesystem change, ask for approval."
+    "autonomos",
+    "capture-runtime-family",
+    "codex-approval-request"
   ],
-  "source_raw": "codex_traces/codex-approval-request/raw.jsonl",
-  "source_capture_dir": "codex_traces/codex-approval-request"
+  "source_capture_dir": "captures/codex-approval-request/attempt-1-tool_oriented/roma-session-20260313T155455Z",
+  "session_id": "capture-codex-approval-request-20260313T155452620023Z",
+  "approval_request_present": false,
+  "request_user_input_present": false
 }

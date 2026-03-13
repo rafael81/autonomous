@@ -1,4 +1,4 @@
-# codex-approval-request
+# before-making-a-risky-filesystem-change-ask-for-ap
 
 ## Input Prompt
 Before making a risky filesystem change, ask for approval.
@@ -32,4 +32,4 @@ Understood — I’ll pause before any risky filesystem change and ask for your 
 If you want, I can also share a short rule list (e.g., delete/move/rename/overwrite/write-large-batch edits) that I’ll treat as “risky” and always get confirmation for.
 
 ## Notes
-Imported from a real normalized trace.
+strategy=tool_oriented; attempts=['tool_oriented']; policy=approval=no, request_user_input=no, retry=no; adaptive=Attempt scores: [0]; intended_match=codex-approval-request score=0; drift=aligned; closest_match=codex-approval-request; top_comparisons=['MATCH codex-approval-request: score=0 matched structurally', 'MATCH codex-request-user-input-choice: score=0 matched structurally', 'MATCH codex-simple-hello: score=0 matched structurally']

@@ -1,4 +1,7 @@
-{"type":"thread.started","thread_id":"019ce7e1-d2e6-7202-abfa-e335120ac5a7"}
-{"type":"turn.started"}
-{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Understood. Before any risky filesystem change, I’ll ask for your approval first."}}
-{"type":"turn.completed","usage":{"input_tokens":9527,"cached_input_tokens":6528,"output_tokens":72}}
+{"type":"session_start","session_id":"494e8f61-b041-4b36-8913-a055843b1550","model":"gpt-5.3-codex-spark"}
+{"type":"status","text":"Roma is thinking..."}
+{"type":"assistant_message_delta","text":"Understood — I’ll pause before any risky filesystem change and ask for your explicit approval first.\n\nIf you want, I can also share a short rule list (e.g., delete/move/rename/overwrite/write-large-batch edits)"}
+{"type":"assistant_message_delta","text":"Understood — I’ll pause before any risky filesystem change and ask for your explicit approval first.\n\nIf you want, I can also share a short rule list (e.g., delete/move/rename/overwrite/write-large-batch edits) that I’ll treat as “risky” and always get confirmation for."}
+{"type":"assistant_message","text":"Understood — I’ll pause before any risky filesystem change and ask for your explicit approval first.\n\nIf you want, I can also share a short rule list (e.g., delete/move/rename/overwrite/write-large-batch edits) that I’ll treat as “risky” and always get confirmation for.","raw":{"role":"assistant","content":"Understood — I’ll pause before any risky filesystem change and ask for your explicit approval first.\n\nIf you want, I can also share a short rule list (e.g., delete/move/rename/overwrite/write-large-batch edits) that I’ll treat as “risky” and always get confirmation for."}}
+{"type":"status","text":"Ready"}
+{"type":"session_end","ok":true,"tool_summary":{},"evidence_count":0,"tool_budget":5,"stop_after_evidence":2}

@@ -394,6 +394,76 @@ def test_capture_codex_family_allows_non_bypass_mode(monkeypatch, capsys, tmp_pa
     assert "family=approval" in output
 
 
+def test_capture_runtime_family_auto_resumes_approval(monkeypatch, capsys, tmp_path: Path):
+    families_path = tmp_path / "families.json"
+    families_path.write_text(
+        '[{"family_id":"approval","prompt":"Ask for approval.","invocation_mode":"chat","expected_strategy":"tool_oriented","expected_tool_family":"approval","max_score":5,"expected_artifact":"approval","notes":"demo"}]',
+        encoding="utf-8",
+    )
+    initial_dir = tmp_path / "captures" / "approval" / "attempt-1"
+    final_dir = tmp_path / "captures" / "approval" / "attempt-2"
+    initial_dir.mkdir(parents=True)
+    final_dir.mkdir(parents=True)
+    (initial_dir / "normalized.jsonl").write_text("[]\n", encoding="utf-8")
+    (final_dir / "normalized.jsonl").write_text("[]\n", encoding="utf-8")
+    approval_request = initial_dir / "approval-request.json"
+    approval_request.write_text(
+        '{"question":"Approve?","options":[{"label":"Approve","description":"yes"}]}\n',
+        encoding="utf-8",
+    )
+    calls = []
+
+    class Summary:
+        def __init__(self, session_dir, approval_request_path=None):
+            self.final_message = "ok"
+            self.strategy_id = "tool_oriented"
+            self.baseline_example_id = "example"
+            self.attempted_strategies = ["tool_oriented"]
+            self.orchestration_summary = "approval=no, request_user_input=no, retry=no"
+            self.session_dir = session_dir
+            self.normalized_path = session_dir / "normalized.jsonl"
+            self.promoted_example_dir = None
+            self.baseline_matches = 0
+            self.baseline_total = 0
+            self.comparison_summary_path = None
+            self.request_user_input_path = None
+            self.adaptive_notes = "none"
+            self.memory_path = None
+            self.approval_request_path = approval_request_path
+            self.closest_match_example_id = None
+            self.closest_match_score = None
+            self.intended_match_example_id = None
+            self.intended_match_score = None
+            self.drift_summary = None
+            self.drift_primary_causes = []
+
+    summaries = [Summary(initial_dir, approval_request), Summary(final_dir, None)]
+    monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: calls.append(kwargs) or summaries.pop(0))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "autonomos",
+            "capture-runtime-family",
+            "approval",
+            "--families-path",
+            str(families_path),
+            "--output-dir",
+            str(tmp_path / "codex_traces"),
+        ],
+    )
+
+    exit_code = cli.main()
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert len(calls) == 2
+    assert calls[1]["prompt"] == "continue"
+    assert calls[1]["approval_response_path"] is not None
+    assert (tmp_path / "codex_traces" / "approval" / "normalized.jsonl").exists()
+    assert "family=approval" in output
+
+
 def test_analyze_drift_prints_categories(monkeypatch, capsys, tmp_path: Path):
     expected = tmp_path / "expected.jsonl"
     actual = tmp_path / "actual.jsonl"
