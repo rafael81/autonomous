@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autonomos"
-version = "0.1.0"
+version = "0.2.0b0"
 description = "Observation and normalization toolkit for Codex CLI traces"
 readme = "README.md"
 requires-python = ">=3.11"

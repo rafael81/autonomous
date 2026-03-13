@@ -2,6 +2,8 @@
 
 Codex CLI observation toolkit for collecting and normalizing prompt-to-answer traces.
 
+Current release target: `0.2.0b0` (`beta`)
+
 ## Goals
 
 - Capture observable Codex CLI session traces.
@@ -126,3 +128,19 @@ This repository now provides:
 - a user-facing `chat` command built on the same observation pipeline
 
 The remaining gap to full Codex parity is not the observation harness anymore, but improving the produced interaction behavior so your own CLI matches Codex more closely turn by turn.
+
+## Beta release notes
+
+`0.2.0b0` is the first beta focused on user-visible Codex parity signals.
+
+- `roma_ws` is the default runtime path for `chat`, `resume`, `review`, and `repl`
+- default runtime comparisons now target `goldens/` first instead of the older synthetic examples
+- runtime output shows `strategy`, `parity`, `coverage`, `intended-golden`, `closest-match`, `drift`, and `drift-causes`
+- real Codex golden coverage now includes structure analysis, review, request-user-input, approval, and recovery families
+- the regression workflow is documented and runnable from the CLI
+
+Known limitations:
+
+- exact Codex parity is still approximate for some families, especially approval-gated flows
+- `autonomos-2gs` remains open for capturing true approval artifacts without bypass mode
+- release/push automation cannot complete until git and dolt remotes are configured
