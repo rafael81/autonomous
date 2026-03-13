@@ -59,5 +59,30 @@
     "expected_strategy": "tool_oriented",
     "expected_tool_family": "repo_inspection",
     "max_score": 5
+  },
+  {
+    "example_id": "codex-status-summary",
+    "prompt": "How close is this project to Codex CLI right now?",
+    "invocation_mode": "chat",
+    "expected_strategy": "simple_answer",
+    "expected_tool_family": "none",
+    "max_score": 0
+  },
+  {
+    "example_id": "codex-approval-request",
+    "prompt": "Before making a risky filesystem change, ask for approval.",
+    "invocation_mode": "chat",
+    "expected_strategy": "tool_oriented",
+    "expected_tool_family": "approval",
+    "max_score": 5,
+    "expected_artifact": "approval"
+  },
+  {
+    "example_id": "codex-tool-failure-recovery",
+    "prompt": "Try a tool that fails, then explain next steps.",
+    "invocation_mode": "chat",
+    "expected_strategy": "tool_oriented",
+    "expected_tool_family": "recovery",
+    "max_score": 5
   }
 ]

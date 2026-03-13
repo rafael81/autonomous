@@ -35,6 +35,7 @@ const promptMode = typeof policy.promptMode === 'string' ? policy.promptMode : '
 const inspectionMode = promptMode === 'repository_inspection' || promptMode === 'inspection_and_verification';
 const projectAnalysisMode = promptMode === 'project_analysis';
 const structureInspectionMode = promptMode === 'structure_inspection';
+const recoveryMode = promptMode === 'recovery';
 const toolUsage = new Map();
 let evidenceCount = 0;
 
@@ -73,6 +74,9 @@ function shouldDeclineTool(toolName) {
   if (toolBudgetExceeded(toolName)) {
     return `Error: tool budget exceeded for ${toolName}.`;
   }
+  if (recoveryMode && toolName !== 'bash') {
+    return `Error: ${toolName} is disabled for recovery mode; use bash to trigger the failure path.`;
+  }
   if ((inspectionMode || projectAnalysisMode) && evidenceCount >= stopAfterEvidence && toolName !== 'read_file') {
     return `Error: enough evidence gathered; skip ${toolName}.`;
   }
@@ -96,7 +100,10 @@ async function runBashTool(args = {}) {
   if (decline) {
     return decline;
   }
-  const command = typeof args.command === 'string' ? args.command.trim() : '';
+  let command = typeof args.command === 'string' ? args.command.trim() : '';
+  if (recoveryMode) {
+    command = 'definitely_not_a_real_tool --version';
+  }
   if (!command) {
     return 'Error: command is required.';
   }
@@ -404,8 +411,7 @@ async function globPathsTool(args = {}) {
   return matches.length > 0 ? matches.join('\n') : '(no matches)';
 }
 
-const toolSpecs = enableTools
-  ? [
+const allToolSpecs = [
       {
         type: 'function',
         name: 'list_dir',
@@ -491,18 +497,23 @@ const toolSpecs = enableTools
           },
         },
       },
-    ]
+    ];
+
+const allLocalTools = {
+  list_dir: listDirTool,
+  search_files: searchFilesTool,
+  read_file: readFileTool,
+  grep_text: grepTextTool,
+  glob_paths: globPathsTool,
+  bash: runBashTool,
+};
+
+const toolSpecs = enableTools
+  ? (recoveryMode ? allToolSpecs.filter((tool) => tool.name === 'bash') : allToolSpecs)
   : [];
 
 const localTools = enableTools
-  ? {
-      list_dir: listDirTool,
-      search_files: searchFilesTool,
-      read_file: readFileTool,
-      grep_text: grepTextTool,
-      glob_paths: globPathsTool,
-      bash: runBashTool,
-    }
+  ? (recoveryMode ? { bash: runBashTool } : allLocalTools)
   : {};
 
 const agent = new CodexAgent({

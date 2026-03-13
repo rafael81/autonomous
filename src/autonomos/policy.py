@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .io import read_jsonl
-from .strategy import StrategyDecision, is_status_summary_prompt
+from .strategy import (
+    StrategyDecision,
+    is_approval_prompt,
+    is_recovery_prompt,
+    is_status_summary_prompt,
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +42,8 @@ DEFAULT_POLICY = PromptPolicy(
 def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -> PromptPolicy:
     text = prompt.lower()
     status_summary_prompt = is_status_summary_prompt(prompt)
+    approval_prompt = is_approval_prompt(prompt)
+    recovery_prompt = is_recovery_prompt(prompt)
     review_prompt = any(
         token in text
         for token in (
@@ -95,6 +102,30 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             stop_after_evidence=0,
             preferred_tools=(),
             fallback_tool="",
+        )
+    if approval_prompt:
+        return PromptPolicy(
+            prompt_mode="approval",
+            tool_budget=1,
+            max_repeated_tool_calls=1,
+            preferred_roots=(),
+            required_roots=(),
+            excluded_roots=DEFAULT_POLICY.excluded_roots,
+            stop_after_evidence=0,
+            preferred_tools=(),
+            fallback_tool="bash",
+        )
+    if recovery_prompt:
+        return PromptPolicy(
+            prompt_mode="recovery",
+            tool_budget=2,
+            max_repeated_tool_calls=1,
+            preferred_roots=("README.md", "pyproject.toml", "src", "tests"),
+            required_roots=(),
+            excluded_roots=DEFAULT_POLICY.excluded_roots,
+            stop_after_evidence=1,
+            preferred_tools=("bash",),
+            fallback_tool="bash",
         )
     if review_prompt:
         return PromptPolicy(
@@ -189,6 +220,14 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
             comparison_score,
             getattr(attempt.strategy, "strategy_id", ""),
         )
+    if policy.prompt_mode == "approval":
+        substantive_evidence_penalty = 0 if getattr(attempt.result, "session_dir", None) else 1
+    if policy.prompt_mode == "recovery":
+        lowered = final_message.lower()
+        if not any(name in {"bash", "shell"} for name in tool_names):
+            preferred_tool_penalty = 1
+        if "next step" not in lowered and "next steps" not in lowered and "다음" not in lowered:
+            substantive_evidence_penalty = 1
     if policy.prompt_mode in {"structure_inspection", "repository_inspection", "inspection_and_verification"} and not tool_rows:
         inspection_without_tools_penalty = 1
     if policy.prompt_mode.startswith("repository_") or policy.prompt_mode == "inspection_and_verification":

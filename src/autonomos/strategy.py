@@ -116,6 +116,38 @@ def is_request_user_input_prompt(prompt: str) -> bool:
     )
 
 
+def is_approval_prompt(prompt: str) -> bool:
+    text = prompt.lower()
+    return any(
+        token in text
+        for token in (
+            "ask for approval",
+            "ask approval",
+            "approval",
+            "approve before",
+            "before making a risky filesystem change",
+            "승인",
+        )
+    )
+
+
+def is_recovery_prompt(prompt: str) -> bool:
+    text = prompt.lower()
+    return any(
+        token in text
+        for token in (
+            "tool that fails",
+            "fails, then explain",
+            "failed tool",
+            "failure recovery",
+            "recover from failure",
+            "command not found",
+            "실패",
+            "복구",
+        )
+    )
+
+
 def choose_strategy(prompt: str) -> StrategyDecision:
     text = prompt.lower()
 
@@ -123,6 +155,10 @@ def choose_strategy(prompt: str) -> StrategyDecision:
         return _by_id("tool_oriented")
     if is_request_user_input_prompt(prompt):
         return _by_id("planning")
+    if is_approval_prompt(prompt):
+        return _by_id("tool_oriented")
+    if is_recovery_prompt(prompt):
+        return _by_id("tool_oriented")
     if is_status_summary_prompt(prompt):
         return _by_id("simple_answer")
     if any(token in text for token in ("unsafe", "malware", "exploit", "steal", "bypass")):
@@ -170,6 +206,10 @@ def candidate_strategies(prompt: str, limit: int = 3, goldens_root: Path = GOLDE
         return [_by_id("tool_oriented")]
     if is_request_user_input_prompt(prompt):
         return [_by_id("planning")]
+    if is_approval_prompt(prompt):
+        return [_by_id("tool_oriented")]
+    if is_recovery_prompt(prompt):
+        return [_by_id("tool_oriented")]
     if is_status_summary_prompt(prompt):
         return [_by_id("simple_answer")]
     if any(

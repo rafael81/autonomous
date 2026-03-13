@@ -3,10 +3,12 @@ from pathlib import Path
 from autonomos.instructions import build_full_instructions, render_user_request
 from autonomos.policy import infer_prompt_policy
 from autonomos.strategy import (
+    is_approval_prompt,
     candidate_strategies,
     choose_strategy,
     infer_golden_strategy_hint,
     is_request_user_input_prompt,
+    is_recovery_prompt,
     is_review_prompt,
     is_status_summary_prompt,
 )
@@ -45,6 +47,14 @@ def test_review_prompt_detection_is_explicit():
 
 def test_request_user_input_prompt_detection_is_explicit():
     assert is_request_user_input_prompt("Ask me to choose a direction first.")
+
+
+def test_approval_prompt_detection_is_explicit():
+    assert is_approval_prompt("Before making a risky filesystem change, ask for approval.")
+
+
+def test_recovery_prompt_detection_is_explicit():
+    assert is_recovery_prompt("Try a tool that fails, then explain next steps.")
 
 
 def test_review_prompt_outweighs_status_summary_tokens_in_diff_heavy_prompt():
@@ -113,6 +123,18 @@ def test_candidate_strategies_shortens_for_request_user_input_prompt():
     decisions = candidate_strategies("Ask me to choose a direction first.")
 
     assert [decision.strategy_id for decision in decisions] == ["planning"]
+
+
+def test_candidate_strategies_shortens_for_approval_prompt():
+    decisions = candidate_strategies("Before making a risky filesystem change, ask for approval.")
+
+    assert [decision.strategy_id for decision in decisions] == ["tool_oriented"]
+
+
+def test_candidate_strategies_shortens_for_recovery_prompt():
+    decisions = candidate_strategies("Try a tool that fails, then explain next steps.")
+
+    assert [decision.strategy_id for decision in decisions] == ["tool_oriented"]
 
 
 def test_infer_golden_strategy_hint_uses_matching_golden_prompt(tmp_path: Path):

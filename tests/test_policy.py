@@ -43,6 +43,20 @@ def test_infer_prompt_policy_for_status_summary():
     assert policy.preferred_tools == ()
 
 
+def test_infer_prompt_policy_for_approval():
+    policy = infer_prompt_policy("Before making a risky filesystem change, ask for approval.")
+
+    assert policy.prompt_mode == "approval"
+    assert policy.tool_budget == 1
+
+
+def test_infer_prompt_policy_for_recovery():
+    policy = infer_prompt_policy("Try a tool that fails, then explain next steps.")
+
+    assert policy.prompt_mode == "recovery"
+    assert policy.preferred_tools == ("bash",)
+
+
 def test_structure_inspection_instructions_require_staged_scan():
     strategy = choose_strategy("현재 프로젝트 구조 분석")
     policy = infer_prompt_policy("현재 프로젝트 구조 분석")
@@ -61,6 +75,24 @@ def test_status_summary_instructions_avoid_inspection():
 
     assert "direct status summary" in instructions
     assert "Do not call tools" in instructions
+
+
+def test_approval_instructions_stop_for_handoff():
+    strategy = choose_strategy("Before making a risky filesystem change, ask for approval.")
+    policy = infer_prompt_policy("Before making a risky filesystem change, ask for approval.")
+
+    instructions = build_mode_instructions(strategy, policy)
+
+    assert "Ask for approval clearly" in instructions
+
+
+def test_recovery_instructions_call_for_grounded_next_step():
+    strategy = choose_strategy("Try a tool that fails, then explain next steps.")
+    policy = infer_prompt_policy("Try a tool that fails, then explain next steps.")
+
+    instructions = build_mode_instructions(strategy, policy)
+
+    assert "grounded next step" in instructions
 
 
 def test_rank_roma_attempt_penalizes_empty_runtime_fallback(tmp_path: Path):

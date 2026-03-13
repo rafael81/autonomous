@@ -60,6 +60,12 @@ def build_mode_instructions(strategy: StrategyDecision, policy: PromptPolicy) ->
         lines.append("Focus on repository layout, module boundaries, and key entry points.")
         lines.append("Start with a short preamble, then inspect the top-level layout plus the key roots and files before summarizing.")
         lines.append("Prefer multiple focused structure reads over a single shallow listing.")
+    elif policy.prompt_mode == "approval":
+        lines.append("Do not proceed with risky execution before obtaining explicit approval.")
+        lines.append("Ask for approval clearly and stop after the approval handoff.")
+    elif policy.prompt_mode == "recovery":
+        lines.append("Trigger a controlled failure when needed, then explain the grounded next step.")
+        lines.append("Use a minimal tool path and make the recovery reasoning explicit.")
     elif policy.prompt_mode == "status_summary":
         lines.append("Answer as a direct status summary instead of inspecting the repository.")
         lines.append("Use the current known parity status or observed runtime metadata when available.")

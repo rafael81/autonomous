@@ -83,6 +83,17 @@ def detect_tool_family(
         and (
             row.get("payload", {}).get("status") == "failed"
             or (row.get("payload", {}).get("exit_code") not in (None, 0))
+            or "exit_code: 1" in str(row.get("payload", {}).get("output", ""))
+            or "command not found" in str(row.get("payload", {}).get("output", "")).lower()
+            or "no such file or directory" in str(row.get("payload", {}).get("output", "")).lower()
+        )
+    ]
+    failed_tool_profiles = [
+        row
+        for row in rows
+        if row.get("event_type") == "tool_profile"
+        and (
+            row.get("payload", {}).get("summary", {}).get("exit_code") not in (None, 0, "n/a")
         )
     ]
     tool_names = [row.get("payload", {}).get("tool_name", "") for row in rows if row.get("event_type") == "tool_call_request"]
@@ -96,7 +107,7 @@ def detect_tool_family(
         return "approval"
     if "request_user_input" in event_types:
         return "request_user_input"
-    if "tool_call_error" in event_types or failed_tool_results:
+    if "tool_call_error" in event_types or failed_tool_results or failed_tool_profiles:
         return "recovery"
     if not tool_names:
         return "none"
