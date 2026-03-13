@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 
-from .compare import IGNORED_EVENT_TYPES
+from .compare import IGNORED_EVENT_TYPES, INSPECTION_TOOL_NAMES
 
 
 @dataclass(frozen=True)
@@ -66,7 +66,7 @@ def analyze_trace_drift(expected: list[dict], actual: list[dict]) -> DriftAnalys
         )
 
     primary_causes = [category.name for category in categories[:3]]
-    summary = "; ".join(f"{category.name}: {category.details[0]}" for category in categories[:3])
+    summary = "; ".join(f"{category.name}: {_summarize_detail(category.name, category.details[0])}" for category in categories[:3])
     return DriftAnalysis(summary=summary, primary_causes=primary_causes, categories=categories)
 
 
@@ -209,6 +209,83 @@ def format_drift_analysis(analysis: DriftAnalysis) -> list[str]:
         return ["aligned"]
     lines = [analysis.summary]
     for category in analysis.categories:
-        detail_text = "; ".join(category.details) if category.details else "none"
+        detail_text = "; ".join(_summarize_detail(category.name, detail) for detail in category.details) if category.details else "none"
         lines.append(f"- {category.name}: {detail_text}")
     return lines
+
+
+def _summarize_detail(category_name: str, detail: str) -> str:
+    if category_name == "tool_routing" and "expected tool order=" in detail and "actual=" in detail:
+        expected_names, actual_names = _extract_tool_name_lists(detail)
+        if _is_inspection_family(expected_names, actual_names):
+            return (
+                "same inspection family, but the runtime used a shorter built-in tool path "
+                f"({len(actual_names)} steps) than the Codex golden ({len(expected_names)} steps)"
+            )
+    if category_name == "tool_count" and "expected tool counts=" in detail and "actual=" in detail:
+        expected_counts, actual_counts = _extract_count_maps(detail)
+        if _is_inspection_count_family(expected_counts, actual_counts):
+            return (
+                "inspection evidence was gathered with fewer tool calls than the Codex golden "
+                f"(actual={sum(actual_counts.values())}, golden={sum(expected_counts.values())})"
+            )
+    if category_name == "result_shape" and "expected tool results=" in detail and "actual=" in detail:
+        numbers = [int(token) for token in detail.replace("=", " ").split() if token.isdigit()]
+        if len(numbers) >= 2:
+            return f"the runtime produced fewer evidence snapshots than the Codex golden (actual={numbers[1]}, golden={numbers[0]})"
+    return detail
+
+
+def _extract_tool_name_lists(detail: str) -> tuple[list[str], list[str]]:
+    prefix = "expected tool order="
+    middle = " actual="
+    expected_raw = detail.split(prefix, 1)[1].split(middle, 1)[0]
+    actual_raw = detail.split(middle, 1)[1]
+    return (_parse_name_list(expected_raw), _parse_name_list(actual_raw))
+
+
+def _parse_name_list(raw: str) -> list[str]:
+    stripped = raw.strip().removeprefix("[").removesuffix("]")
+    if not stripped:
+        return []
+    items: list[str] = []
+    for part in stripped.split(","):
+        token = part.strip().strip("'").strip('"')
+        if token:
+            items.append(token)
+    return items
+
+
+def _extract_count_maps(detail: str) -> tuple[dict[str, int], dict[str, int]]:
+    prefix = "expected tool counts="
+    middle = " actual="
+    expected_raw = detail.split(prefix, 1)[1].split(middle, 1)[0]
+    actual_raw = detail.split(middle, 1)[1]
+    return (_parse_count_map(expected_raw), _parse_count_map(actual_raw))
+
+
+def _parse_count_map(raw: str) -> dict[str, int]:
+    stripped = raw.strip().removeprefix("{").removesuffix("}")
+    if not stripped:
+        return {}
+    counts: dict[str, int] = {}
+    for part in stripped.split(","):
+        if ":" not in part:
+            continue
+        key, value = part.split(":", 1)
+        name = key.strip().strip("'").strip('"')
+        try:
+            counts[name] = int(value.strip())
+        except ValueError:
+            continue
+    return counts
+
+
+def _is_inspection_family(expected_names: list[str], actual_names: list[str]) -> bool:
+    names = expected_names + actual_names
+    return bool(names) and all(name in INSPECTION_TOOL_NAMES for name in names)
+
+
+def _is_inspection_count_family(expected_counts: dict[str, int], actual_counts: dict[str, int]) -> bool:
+    names = list(expected_counts) + list(actual_counts)
+    return bool(names) and all(name in INSPECTION_TOOL_NAMES for name in names)

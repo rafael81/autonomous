@@ -235,7 +235,7 @@ def test_chat_prints_drift_metadata_when_present(monkeypatch, capsys, tmp_path: 
         approval_request_path = None
         intended_match_example_id = "codex-readme-inspection"
         intended_match_score = 3
-        drift_summary = "tool_routing: expected tool order=['list_dir'] actual=['bash']"
+        drift_summary = "tool_routing: same inspection family, but the runtime used a shorter built-in tool path (1 steps) than the Codex golden (1 steps)"
         drift_primary_causes = ["tool_routing", "final_answer_formatting"]
         closest_match_example_id = "codex-readme-inspection"
         closest_match_score = 3
@@ -251,7 +251,7 @@ def test_chat_prints_drift_metadata_when_present(monkeypatch, capsys, tmp_path: 
     assert "[parity] drift from codex-readme-inspection (score=3)" in captured.out
     assert "[coverage] 0/10 aligned traces" in captured.out
     assert "[intended-golden] codex-readme-inspection (score=3)" in captured.out
-    assert "[drift] tool_routing: expected tool order=['list_dir'] actual=['bash']" in captured.out
+    assert "[drift] tool_routing: same inspection family, but the runtime used a shorter built-in tool path" in captured.out
     assert "[drift-causes] tool_routing, final_answer_formatting" in captured.out
 
 

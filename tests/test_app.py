@@ -80,7 +80,7 @@ def test_build_drift_summary_reports_expected_categories(tmp_path: Path):
     )
 
     assert summary is not None
-    assert "tool_routing" in summary
+    assert "shorter built-in tool path" in summary
     assert "tool_routing" in causes
 
 
