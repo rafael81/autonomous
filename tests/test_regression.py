@@ -86,6 +86,22 @@ def test_detect_tool_family_from_tool_failure(tmp_path: Path):
     assert detect_tool_family(normalized) == "recovery"
 
 
+def test_detect_tool_family_from_failed_tool_result(tmp_path: Path):
+    normalized = tmp_path / "normalized.jsonl"
+    write_jsonl(
+        normalized,
+        [
+            {"event_type": "tool_call_request", "payload": {"tool_name": "shell"}},
+            {
+                "event_type": "tool_call_result",
+                "payload": {"tool_name": "shell", "status": "failed", "exit_code": 127},
+            },
+        ],
+    )
+
+    assert detect_tool_family(normalized) == "recovery"
+
+
 def test_run_regression_suite_uses_expected_checks(monkeypatch, tmp_path: Path):
     suite_path = tmp_path / "suite.json"
     suite_path.write_text(

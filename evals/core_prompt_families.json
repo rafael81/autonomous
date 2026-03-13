@@ -17,7 +17,7 @@
     "expected_tool_family": "request_user_input",
     "max_score": 5,
     "expected_artifact": "request_user_input",
-    "notes": "Interactive family for direction-setting prompts that should request user input."
+    "notes": "Interactive family for direction-setting prompts. Under current codex exec capture, this often surfaces as a conversational question rather than a structured request_user_input artifact."
   },
   {
     "family_id": "codex-tool-failure-recovery",
@@ -37,7 +37,7 @@
     "expected_tool_family": "approval",
     "max_score": 5,
     "expected_artifact": "approval",
-    "notes": "Approval-gated family for risky operations that should emit an approval artifact."
+    "notes": "Approval-gated family for risky operations. Under bypassed codex exec capture, this currently presents as a policy statement rather than a structured approval artifact."
   },
   {
     "family_id": "codex-simple-hello",

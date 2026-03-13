@@ -11,7 +11,11 @@ This project tunes Autonomos against real Codex behavior by capturing live Codex
 These families are the reproducible prompts used to gather canonical Codex traces.
 The configured set now includes stable chat families plus review, request-user-input,
 approval, and recovery-oriented prompts so new Codex captures can be promoted
-through the same workflow.
+through the same workflow. In practice, some families are still capture-limited:
+under `--dangerously-bypass-approvals-and-sandbox`, approval prompts currently
+produce conversational policy acknowledgements instead of structured approval
+artifacts, and direction-setting prompts may stay as plain assistant questions
+instead of `request_user_input` events.
 
 ## 2. Capture a real Codex trace
 

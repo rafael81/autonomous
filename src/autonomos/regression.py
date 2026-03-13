@@ -65,6 +65,15 @@ def detect_tool_family(normalized_path: Path | None, *, invocation_mode: str = "
         return "none"
     rows = read_jsonl(normalized_path)
     event_types = [row.get("event_type") for row in rows]
+    failed_tool_results = [
+        row
+        for row in rows
+        if row.get("event_type") == "tool_call_result"
+        and (
+            row.get("payload", {}).get("status") == "failed"
+            or (row.get("payload", {}).get("exit_code") not in (None, 0))
+        )
+    ]
     tool_names = [row.get("payload", {}).get("tool_name", "") for row in rows if row.get("event_type") == "tool_call_request"]
     if invocation_mode == "review":
         return "review"
@@ -72,7 +81,7 @@ def detect_tool_family(normalized_path: Path | None, *, invocation_mode: str = "
         return "approval"
     if "request_user_input" in event_types:
         return "request_user_input"
-    if "tool_call_error" in event_types:
+    if "tool_call_error" in event_types or failed_tool_results:
         return "recovery"
     if not tool_names:
         return "none"
