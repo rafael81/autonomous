@@ -272,6 +272,16 @@ def build_parser() -> argparse.ArgumentParser:
     repl.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     repl.add_argument("--session-id", default="default", help="Logical chat session id.")
     repl.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this REPL.")
+
+    tui = subparsers.add_parser("tui", help="Run the interactive Textual TUI.")
+    tui.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
+    tui.add_argument("--cwd", default=".", help="Working directory for runtime execution.")
+    tui.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    tui.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    tui.add_argument("--baselines-dir", default=DEFAULT_RUNTIME_BASELINES_DIR, help="Baseline examples directory.")
+    tui.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    tui.add_argument("--session-id", default="default", help="Logical chat session id.")
+    tui.add_argument("--new-session", action="store_true", help="Generate a fresh session id for the TUI session.")
     return parser
 
 
@@ -755,6 +765,22 @@ def main() -> int:
                 )
                 if follow_up is not None:
                     _print_repl_summary(follow_up)
+            return 0
+        if args.command == "tui":
+            session_id = _resolve_session_id(args.session_id, args.new_session)
+            from .tui_app import TuiConfig, run_tui
+
+            run_tui(
+                TuiConfig(
+                    profile=args.profile,
+                    cwd=Path(args.cwd),
+                    captures_dir=Path(args.captures_dir),
+                    promote_dir=Path(args.promote_dir),
+                    baselines_dir=Path(args.baselines_dir),
+                    memory_dir=Path(args.memory_dir),
+                    session_id=session_id,
+                )
+            )
             return 0
     except ValueError as exc:
         print(str(exc), file=sys.stderr)

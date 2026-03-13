@@ -58,6 +58,12 @@ Run the user-facing chat flow:
 ./.venv/bin/autonomos chat "say hello briefly"
 ```
 
+Run the interactive TUI:
+
+```bash
+./.venv/bin/autonomos tui --new-session
+```
+
 The user-facing runtime defaults to `roma_ws`, and `chat`, `resume`, `review`, and `repl`
 now compare against `goldens/` by default so the visible score output matches the
 real Codex parity axis instead of the older synthetic examples.
@@ -126,6 +132,7 @@ This repository now provides:
 - promotion of live captures into reusable examples
 - structural baseline comparison
 - a user-facing `chat` command built on the same observation pipeline
+- a first Textual TUI shell with transcript, parity, diagnostics, sessions, and inline resume actions
 
 The remaining gap to full Codex parity is not the observation harness anymore, but improving the produced interaction behavior so your own CLI matches Codex more closely turn by turn.
 

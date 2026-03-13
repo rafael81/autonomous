@@ -164,11 +164,13 @@ def test_runtime_commands_default_to_goldens_baselines():
     review_args = parser.parse_args(["review"])
     resume_args = parser.parse_args(["resume", "continue", "--response-file", "response.json"])
     repl_args = parser.parse_args(["repl"])
+    tui_args = parser.parse_args(["tui"])
 
     assert chat_args.baselines_dir == "goldens"
     assert review_args.baselines_dir == "goldens"
     assert resume_args.baselines_dir == "goldens"
     assert repl_args.baselines_dir == "goldens"
+    assert tui_args.baselines_dir == "goldens"
 
 
 def test_observe_commands_keep_examples_baselines():
