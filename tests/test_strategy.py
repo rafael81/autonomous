@@ -2,7 +2,7 @@ from pathlib import Path
 
 from autonomos.instructions import build_full_instructions, render_user_request
 from autonomos.policy import infer_prompt_policy
-from autonomos.strategy import candidate_strategies, choose_strategy, infer_golden_strategy_hint
+from autonomos.strategy import candidate_strategies, choose_strategy, infer_golden_strategy_hint, is_status_summary_prompt
 
 
 def test_choose_strategy_selects_planning():
@@ -30,6 +30,16 @@ def test_choose_strategy_selects_tool_oriented_for_review():
     decision = choose_strategy("Review only the current CLI changes.")
 
     assert decision.strategy_id == "tool_oriented"
+
+
+def test_status_summary_prompt_detection_for_codex_parity_question():
+    assert is_status_summary_prompt("현재 codex cli와 비교했을때 프로젝트 어느정도 점수야")
+
+
+def test_choose_strategy_selects_simple_answer_for_status_summary_prompt():
+    decision = choose_strategy("현재 codex cli와 비교했을때 프로젝트 어느정도 점수야")
+
+    assert decision.strategy_id == "simple_answer"
 
 
 def test_instruction_builders_embed_mode_and_request():
@@ -61,6 +71,12 @@ def test_candidate_strategies_shortens_for_structure_inspection():
     decisions = candidate_strategies("현재 프로젝트 구조 분석")
 
     assert [decision.strategy_id for decision in decisions] == ["tool_oriented"]
+
+
+def test_candidate_strategies_shortens_for_status_summary_prompt():
+    decisions = candidate_strategies("현재 codex cli와 비교했을때 프로젝트 어느정도 점수야")
+
+    assert [decision.strategy_id for decision in decisions] == ["simple_answer"]
 
 
 def test_infer_golden_strategy_hint_uses_matching_golden_prompt(tmp_path: Path):

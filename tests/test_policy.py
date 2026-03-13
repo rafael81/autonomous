@@ -35,6 +35,14 @@ def test_infer_prompt_policy_for_code_review():
     assert policy.preferred_tools[0] == "bash"
 
 
+def test_infer_prompt_policy_for_status_summary():
+    policy = infer_prompt_policy("현재 codex cli와 비교했을때 프로젝트 어느정도 점수야")
+
+    assert policy.prompt_mode == "status_summary"
+    assert policy.tool_budget == 0
+    assert policy.preferred_tools == ()
+
+
 def test_structure_inspection_instructions_require_staged_scan():
     strategy = choose_strategy("현재 프로젝트 구조 분석")
     policy = infer_prompt_policy("현재 프로젝트 구조 분석")
@@ -43,6 +51,16 @@ def test_structure_inspection_instructions_require_staged_scan():
 
     assert "Start with a short preamble" in instructions
     assert "multiple focused structure reads" in instructions
+
+
+def test_status_summary_instructions_avoid_inspection():
+    strategy = choose_strategy("현재 codex cli와 비교했을때 프로젝트 어느정도 점수야")
+    policy = infer_prompt_policy("현재 codex cli와 비교했을때 프로젝트 어느정도 점수야")
+
+    instructions = build_mode_instructions(strategy, policy)
+
+    assert "direct status summary" in instructions
+    assert "Do not call tools" in instructions
 
 
 def test_rank_roma_attempt_penalizes_empty_runtime_fallback(tmp_path: Path):

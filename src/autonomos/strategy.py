@@ -63,9 +63,42 @@ STRATEGY_LIBRARY: tuple[StrategyDecision, ...] = (
 )
 
 
+def is_status_summary_prompt(prompt: str) -> bool:
+    text = prompt.lower()
+    if "codex" not in text and "autonomos" not in text and "cli" not in text:
+        return False
+    return any(
+        token in text
+        for token in (
+            "score",
+            "rating",
+            "how close",
+            "how good",
+            "how much",
+            "how far",
+            "compared to",
+            "vs codex",
+            "completion",
+            "parity",
+            "current level",
+            "status",
+            "몇 점",
+            "점수",
+            "어느정도",
+            "어느 정도",
+            "비교",
+            "수준",
+            "완성도",
+            "달성률",
+        )
+    )
+
+
 def choose_strategy(prompt: str) -> StrategyDecision:
     text = prompt.lower()
 
+    if is_status_summary_prompt(prompt):
+        return _by_id("simple_answer")
     if any(token in text for token in ("review", "code review", "current changes", "diff", "리뷰")):
         return _by_id("tool_oriented")
     if any(token in text for token in ("unsafe", "malware", "exploit", "steal", "bypass")):
@@ -109,6 +142,8 @@ def choose_strategy(prompt: str) -> StrategyDecision:
 
 def candidate_strategies(prompt: str, limit: int = 3, goldens_root: Path = GOLDENS_ROOT) -> list[StrategyDecision]:
     text = prompt.lower()
+    if is_status_summary_prompt(prompt):
+        return [_by_id("simple_answer")]
     if any(
         token in text
         for token in (

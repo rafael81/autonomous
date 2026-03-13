@@ -60,6 +60,10 @@ def build_mode_instructions(strategy: StrategyDecision, policy: PromptPolicy) ->
         lines.append("Focus on repository layout, module boundaries, and key entry points.")
         lines.append("Start with a short preamble, then inspect the top-level layout plus the key roots and files before summarizing.")
         lines.append("Prefer multiple focused structure reads over a single shallow listing.")
+    elif policy.prompt_mode == "status_summary":
+        lines.append("Answer as a direct status summary instead of inspecting the repository.")
+        lines.append("Use the current known parity status or observed runtime metadata when available.")
+        lines.append("Do not call tools unless the user explicitly asks for fresh evidence.")
     elif policy.prompt_mode == "repository_inspection":
         lines.append("Inspect the repository from observed evidence and summarize the most relevant files or modules.")
         lines.append("Prefer focused reads over deep or exhaustive validation.")

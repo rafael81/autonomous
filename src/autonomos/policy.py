@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .io import read_jsonl
-from .strategy import StrategyDecision
+from .strategy import StrategyDecision, is_status_summary_prompt
 
 
 @dataclass(frozen=True)
@@ -36,6 +36,7 @@ DEFAULT_POLICY = PromptPolicy(
 
 def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -> PromptPolicy:
     text = prompt.lower()
+    status_summary_prompt = is_status_summary_prompt(prompt)
     review_prompt = any(
         token in text
         for token in (
@@ -83,6 +84,18 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
     ) or (strategy is not None and strategy.strategy_id == "tool_oriented")
     verification_prompt = any(token in text for token in ("test", "verify", "pytest", "check"))
 
+    if status_summary_prompt:
+        return PromptPolicy(
+            prompt_mode="status_summary",
+            tool_budget=0,
+            max_repeated_tool_calls=0,
+            preferred_roots=(),
+            required_roots=(),
+            excluded_roots=DEFAULT_POLICY.excluded_roots,
+            stop_after_evidence=0,
+            preferred_tools=(),
+            fallback_tool="",
+        )
     if review_prompt:
         return PromptPolicy(
             prompt_mode="code_review",
@@ -155,6 +168,27 @@ def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, st
     planning_penalty = 0
 
     preferred_tool_penalty = 0
+    if policy.prompt_mode == "status_summary":
+        substantive_evidence_penalty = 1 if tool_rows else 0
+        preferred_tool_penalty = 0
+        access_fallback_penalty = 1 if looks_like_access_fallback(final_message) else 0
+        empty_fallback_penalty = 1 if is_empty_runtime_fallback(final_message) else 0
+        comparison_score = getattr(attempt, "comparison_score", 10_000)
+        comparison_matches = getattr(attempt, "comparison_matches", 0)
+        preferred_match_score = getattr(attempt, "preferred_match_score", 10_000)
+        prompt_match_score = getattr(attempt, "prompt_match_score", 10_000)
+        near_golden_bonus = 0 if comparison_matches > 0 and comparison_score <= 1 else 1
+        return (
+            substantive_evidence_penalty,
+            access_fallback_penalty,
+            empty_fallback_penalty,
+            preferred_match_score,
+            prompt_match_score,
+            comparison_matches == 0,
+            near_golden_bonus,
+            comparison_score,
+            getattr(attempt.strategy, "strategy_id", ""),
+        )
     if policy.prompt_mode in {"structure_inspection", "repository_inspection", "inspection_and_verification"} and not tool_rows:
         inspection_without_tools_penalty = 1
     if policy.prompt_mode.startswith("repository_") or policy.prompt_mode == "inspection_and_verification":
