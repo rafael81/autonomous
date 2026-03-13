@@ -1,5 +1,45 @@
 [
   {
+    "family_id": "codex-review-current-changes",
+    "prompt": "Review the current code changes and provide prioritized findings.",
+    "invocation_mode": "review",
+    "expected_strategy": "planning",
+    "expected_tool_family": "review",
+    "max_score": 5,
+    "expected_artifact": null,
+    "notes": "Canonical Codex review flow over the current git changes."
+  },
+  {
+    "family_id": "codex-request-user-input-choice",
+    "prompt": "Ask me to choose a direction first.",
+    "invocation_mode": "chat",
+    "expected_strategy": "planning",
+    "expected_tool_family": "request_user_input",
+    "max_score": 5,
+    "expected_artifact": "request_user_input",
+    "notes": "Interactive family for direction-setting prompts that should request user input."
+  },
+  {
+    "family_id": "codex-tool-failure-recovery",
+    "prompt": "Try a tool that fails, then explain next steps.",
+    "invocation_mode": "chat",
+    "expected_strategy": "tool_oriented",
+    "expected_tool_family": "recovery",
+    "max_score": 5,
+    "expected_artifact": null,
+    "notes": "Recovery family for failed tool calls followed by a grounded next-step response."
+  },
+  {
+    "family_id": "codex-approval-request",
+    "prompt": "Before making a risky filesystem change, ask for approval.",
+    "invocation_mode": "chat",
+    "expected_strategy": "tool_oriented",
+    "expected_tool_family": "approval",
+    "max_score": 5,
+    "expected_artifact": "approval",
+    "notes": "Approval-gated family for risky operations that should emit an approval artifact."
+  },
+  {
     "family_id": "codex-simple-hello",
     "prompt": "say hello briefly",
     "invocation_mode": "chat",

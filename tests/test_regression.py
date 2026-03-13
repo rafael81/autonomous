@@ -49,6 +49,43 @@ def test_detect_tool_family_from_repo_tools(tmp_path: Path):
     assert detect_tool_family(normalized) == "repo_inspection"
 
 
+def test_detect_tool_family_from_request_user_input_event(tmp_path: Path):
+    normalized = tmp_path / "normalized.jsonl"
+    write_jsonl(
+        normalized,
+        [
+            {"event_type": "request_user_input", "payload": {"questions": 1}},
+        ],
+    )
+
+    assert detect_tool_family(normalized) == "request_user_input"
+
+
+def test_detect_tool_family_from_approval_event(tmp_path: Path):
+    normalized = tmp_path / "normalized.jsonl"
+    write_jsonl(
+        normalized,
+        [
+            {"event_type": "exec_approval_request", "payload": {"reason": "needs approval"}},
+        ],
+    )
+
+    assert detect_tool_family(normalized) == "approval"
+
+
+def test_detect_tool_family_from_tool_failure(tmp_path: Path):
+    normalized = tmp_path / "normalized.jsonl"
+    write_jsonl(
+        normalized,
+        [
+            {"event_type": "tool_call_request", "payload": {"tool_name": "bash"}},
+            {"event_type": "tool_call_error", "payload": {"tool_name": "bash", "output": "failed"}},
+        ],
+    )
+
+    assert detect_tool_family(normalized) == "recovery"
+
+
 def test_run_regression_suite_uses_expected_checks(monkeypatch, tmp_path: Path):
     suite_path = tmp_path / "suite.json"
     suite_path.write_text(

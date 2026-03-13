@@ -64,11 +64,18 @@ def detect_tool_family(normalized_path: Path | None, *, invocation_mode: str = "
     if normalized_path is None or not normalized_path.exists():
         return "none"
     rows = read_jsonl(normalized_path)
+    event_types = [row.get("event_type") for row in rows]
     tool_names = [row.get("payload", {}).get("tool_name", "") for row in rows if row.get("event_type") == "tool_call_request"]
-    if not tool_names:
-        return "none"
     if invocation_mode == "review":
         return "review"
+    if "exec_approval_request" in event_types:
+        return "approval"
+    if "request_user_input" in event_types:
+        return "request_user_input"
+    if "tool_call_error" in event_types:
+        return "recovery"
+    if not tool_names:
+        return "none"
     if any(name in {"list_dir", "read_file", "grep_text", "glob_paths", "search_files"} for name in tool_names):
         return "repo_inspection"
     if any(name == "bash" for name in tool_names):

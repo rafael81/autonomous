@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-03-13T15:21:57+00:00",
+  "command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "Before making a risky filesystem change, ask for approval."
+  ],
+  "returncode": 0,
+  "capture_mode": "codex_exec",
+  "session_dir": "codex_traces/codex-approval-request",
+  "has_raw_jsonl": true,
+  "has_normalized_jsonl": true,
+  "prompt_family": "codex-approval-request",
+  "invocation_mode": "chat",
+  "expected_strategy": "tool_oriented",
+  "expected_tool_family": "approval",
+  "expected_artifact": "approval",
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "Before making a risky filesystem change, ask for approval."
+  ]
+}

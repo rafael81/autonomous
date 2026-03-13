@@ -1,0 +1,19 @@
+{
+  "example_id": "codex-request-user-input-choice",
+  "prompt": "Ask me to choose a direction first.",
+  "capture_mode": "codex_exec",
+  "prompt_family": "codex-request-user-input-choice",
+  "invocation_mode": "chat",
+  "expected_strategy": "planning",
+  "expected_tool_family": "request_user_input",
+  "expected_artifact": "request_user_input",
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "Ask me to choose a direction first."
+  ],
+  "source_raw": "codex_traces/codex-request-user-input-choice/raw.jsonl",
+  "source_capture_dir": "codex_traces/codex-request-user-input-choice"
+}

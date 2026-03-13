@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-03-13T15:21:23+00:00",
+  "command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "Ask me to choose a direction first."
+  ],
+  "returncode": 0,
+  "capture_mode": "codex_exec",
+  "session_dir": "codex_traces/codex-request-user-input-choice",
+  "has_raw_jsonl": true,
+  "has_normalized_jsonl": true,
+  "prompt_family": "codex-request-user-input-choice",
+  "invocation_mode": "chat",
+  "expected_strategy": "planning",
+  "expected_tool_family": "request_user_input",
+  "expected_artifact": "request_user_input",
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "Ask me to choose a direction first."
+  ]
+}

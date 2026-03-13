@@ -1,0 +1,20 @@
+{
+  "example_id": "codex-review-current-changes",
+  "prompt": "Review the current code changes and provide prioritized findings.",
+  "capture_mode": "codex_exec",
+  "prompt_family": "codex-review-current-changes",
+  "invocation_mode": "review",
+  "expected_strategy": "planning",
+  "expected_tool_family": "review",
+  "expected_artifact": null,
+  "capture_command": [
+    "codex",
+    "exec",
+    "review",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--uncommitted"
+  ],
+  "source_raw": "codex_traces/codex-review-current-changes/raw.jsonl",
+  "source_capture_dir": "codex_traces/codex-review-current-changes"
+}

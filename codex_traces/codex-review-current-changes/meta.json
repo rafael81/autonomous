@@ -1,0 +1,29 @@
+{
+  "captured_at": "2026-03-12T16:09:39+00:00",
+  "command": [
+    "codex",
+    "exec",
+    "review",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--uncommitted"
+  ],
+  "returncode": 0,
+  "capture_mode": "codex_exec",
+  "session_dir": "codex_traces/codex-review-current-changes",
+  "has_raw_jsonl": true,
+  "has_normalized_jsonl": true,
+  "prompt_family": "codex-review-current-changes",
+  "invocation_mode": "review",
+  "expected_strategy": "planning",
+  "expected_tool_family": "review",
+  "expected_artifact": null,
+  "capture_command": [
+    "codex",
+    "exec",
+    "review",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--uncommitted"
+  ]
+}

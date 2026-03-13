@@ -1,0 +1,19 @@
+{
+  "example_id": "codex-tool-failure-recovery",
+  "prompt": "Try a tool that fails, then explain next steps.",
+  "capture_mode": "codex_exec",
+  "prompt_family": "codex-tool-failure-recovery",
+  "invocation_mode": "chat",
+  "expected_strategy": "tool_oriented",
+  "expected_tool_family": "recovery",
+  "expected_artifact": null,
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "Try a tool that fails, then explain next steps."
+  ],
+  "source_raw": "codex_traces/codex-tool-failure-recovery/raw.jsonl",
+  "source_capture_dir": "codex_traces/codex-tool-failure-recovery"
+}

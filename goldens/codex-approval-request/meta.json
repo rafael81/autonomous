@@ -1,0 +1,19 @@
+{
+  "example_id": "codex-approval-request",
+  "prompt": "Before making a risky filesystem change, ask for approval.",
+  "capture_mode": "codex_exec",
+  "prompt_family": "codex-approval-request",
+  "invocation_mode": "chat",
+  "expected_strategy": "tool_oriented",
+  "expected_tool_family": "approval",
+  "expected_artifact": "approval",
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "Before making a risky filesystem change, ask for approval."
+  ],
+  "source_raw": "codex_traces/codex-approval-request/raw.jsonl",
+  "source_capture_dir": "codex_traces/codex-approval-request"
+}

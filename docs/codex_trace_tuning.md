@@ -9,6 +9,9 @@ This project tunes Autonomos against real Codex behavior by capturing live Codex
 ```
 
 These families are the reproducible prompts used to gather canonical Codex traces.
+The configured set now includes stable chat families plus review, request-user-input,
+approval, and recovery-oriented prompts so new Codex captures can be promoted
+through the same workflow.
 
 ## 2. Capture a real Codex trace
 

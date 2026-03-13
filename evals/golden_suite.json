@@ -8,6 +8,14 @@
     "max_score": 0
   },
   {
+    "example_id": "codex-review-current-changes",
+    "prompt": "Review the current code changes and provide prioritized findings.",
+    "invocation_mode": "review",
+    "expected_strategy": "tool_oriented",
+    "expected_tool_family": "review",
+    "max_score": 5
+  },
+  {
     "example_id": "interactive-multi-turn-context",
     "prompt": "Based on my earlier note, summarize the current state.",
     "invocation_mode": "chat",
@@ -36,19 +44,11 @@
     "max_score": 5
   },
   {
-    "example_id": "roma-review-cli-changes",
-    "prompt": "Review only the current CLI changes.",
-    "invocation_mode": "review",
-    "expected_strategy": "tool_oriented",
-    "expected_tool_family": "review",
-    "max_score": 5
-  },
-  {
     "example_id": "interactive-request-user-input",
-    "prompt": "Choose the better direction for this plan",
+    "prompt": "Ask me to choose a direction first.",
     "invocation_mode": "chat",
     "expected_strategy": "planning",
-    "expected_tool_family": "none",
+    "expected_tool_family": "request_user_input",
     "max_score": 5,
     "expected_artifact": "request_user_input"
   },

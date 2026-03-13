@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-03-13T15:21:39+00:00",
+  "command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "Try a tool that fails, then explain next steps."
+  ],
+  "returncode": 0,
+  "capture_mode": "codex_exec",
+  "session_dir": "codex_traces/codex-tool-failure-recovery",
+  "has_raw_jsonl": true,
+  "has_normalized_jsonl": true,
+  "prompt_family": "codex-tool-failure-recovery",
+  "invocation_mode": "chat",
+  "expected_strategy": "tool_oriented",
+  "expected_tool_family": "recovery",
+  "expected_artifact": null,
+  "capture_command": [
+    "codex",
+    "exec",
+    "--json",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "Try a tool that fails, then explain next steps."
+  ]
+}
