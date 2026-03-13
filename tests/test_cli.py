@@ -99,6 +99,10 @@ def test_chat_new_session_uses_generated_id(monkeypatch, capsys, tmp_path: Path)
         adaptive_notes = "none"
         memory_path = None
         approval_request_path = None
+        intended_match_example_id = "codex-simple-hello"
+        intended_match_score = 0
+        drift_summary = None
+        drift_primary_causes = []
         closest_match_example_id = "roma-simple-hello"
         closest_match_score = 0
 
@@ -111,6 +115,8 @@ def test_chat_new_session_uses_generated_id(monkeypatch, capsys, tmp_path: Path)
     assert exit_code == 0
     assert captured_kwargs["session_id"].startswith("session-")
     assert "[session-id] session-" in captured.out
+    assert "[intended-golden] codex-simple-hello (score=0)" in captured.out
+    assert "[drift] aligned" in captured.out
     assert "[closest-match] roma-simple-hello (score=0)" in captured.out
 
 
@@ -205,6 +211,42 @@ def test_review_command_uses_resolved_review_prompt(monkeypatch, capsys, tmp_pat
     assert exit_code == 0
     assert captured_kwargs["prompt"] == "Review the current code changes."
     assert "[review-target] current changes" in captured.out
+
+
+def test_chat_prints_drift_metadata_when_present(monkeypatch, capsys, tmp_path: Path):
+    class Summary:
+        final_message = "summary"
+        strategy_id = "tool_oriented"
+        baseline_example_id = "example-03-single-tool"
+        attempted_strategies = ["tool_oriented"]
+        orchestration_summary = "approval=no, request_user_input=no, retry=yes"
+        session_dir = tmp_path / "capture"
+        normalized_path = None
+        promoted_example_dir = None
+        baseline_matches = 0
+        baseline_total = 10
+        comparison_summary_path = None
+        request_user_input_path = None
+        adaptive_notes = "Attempt scores: [3]"
+        memory_path = None
+        approval_request_path = None
+        intended_match_example_id = "codex-readme-inspection"
+        intended_match_score = 3
+        drift_summary = "tool_routing: expected tool order=['list_dir'] actual=['bash']"
+        drift_primary_causes = ["tool_routing", "final_answer_formatting"]
+        closest_match_example_id = "codex-readme-inspection"
+        closest_match_score = 3
+
+    monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: Summary())
+    monkeypatch.setattr(sys, "argv", ["autonomos", "chat", "inspect the repo"])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "[intended-golden] codex-readme-inspection (score=3)" in captured.out
+    assert "[drift] tool_routing: expected tool order=['list_dir'] actual=['bash']" in captured.out
+    assert "[drift-causes] tool_routing, final_answer_formatting" in captured.out
 
 
 def test_import_capture_golden_uses_prompt_file(monkeypatch, capsys, tmp_path: Path):

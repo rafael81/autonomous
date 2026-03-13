@@ -7,12 +7,14 @@ from pathlib import Path
 
 from .adaptive import AdaptiveSummary, summarize_attempt_progress
 from .baseline import (
+    BaselineComparison,
     best_comparison_match,
     compare_capture_against_baselines,
     find_examples_for_prompt,
     format_comparison_results,
     promote_capture_to_example,
 )
+from .delta import analyze_trace_drift
 from .instructions import build_full_instructions, render_user_request
 from .io import read_jsonl
 from .memory import MemoryTurn, append_session_memory, load_session_memory, render_memory_context
@@ -51,6 +53,10 @@ class ChatRunSummary:
     approval_request_path: Path | None
     closest_match_example_id: str | None
     closest_match_score: int | None
+    intended_match_example_id: str | None
+    intended_match_score: int | None
+    drift_summary: str | None
+    drift_primary_causes: list[str]
 
 
 def run_chat(
@@ -168,6 +174,17 @@ def run_chat(
         request_user_input_path = None
         approval_request_path = None
         closest_match = best_comparison_match(comparison_results)
+        intended_match = _resolve_intended_match(
+            comparison_results=comparison_results,
+            prompt_matched_examples=prompt_matched_examples,
+            target_example_id=target_example_id,
+        )
+        drift_summary, drift_primary_causes = _build_drift_summary(
+            baselines_dir=baselines_dir,
+            normalized_path=result.normalized_path,
+            intended_match_example_id=intended_match.example_id if intended_match else None,
+            intended_match_score=intended_match.score if intended_match else None,
+        )
         if orchestration.requires_approval:
             approval_request_path = write_approval_artifact(session_dir=result.session_dir, prompt=prompt)
         if orchestration.should_request_user_input:
@@ -199,6 +216,9 @@ def run_chat(
                         f"attempts={[attempt.strategy.strategy_id for attempt in attempts]}; "
                         f"policy={orchestration.policy_summary}; "
                         f"adaptive={adaptive_summary.notes}; "
+                        f"intended_match={intended_match.example_id if intended_match else 'none'} "
+                        f"score={intended_match.score if intended_match else 'none'}; "
+                        f"drift={drift_summary or 'aligned'}; "
                         f"closest_match={closest_match.example_id if closest_match else 'none'}; "
                         f"top_comparisons={format_comparison_results(comparison_results, limit=3)}"
                     ),
@@ -224,6 +244,10 @@ def run_chat(
             approval_request_path=approval_request_path,
             closest_match_example_id=closest_match.example_id if closest_match else None,
             closest_match_score=closest_match.score if closest_match else None,
+            intended_match_example_id=intended_match.example_id if intended_match else None,
+            intended_match_score=intended_match.score if intended_match else None,
+            drift_summary=drift_summary,
+            drift_primary_causes=drift_primary_causes,
         )
 
     outcome: ObservationRunResult = observe_prompt(
@@ -246,6 +270,18 @@ def run_chat(
             [MemoryTurn(role="user", text=prompt), MemoryTurn(role="assistant", text=final_message)],
         )
     closest_match = best_comparison_match(outcome.comparison_results)
+    prompt_matched_examples = find_examples_for_prompt(baselines_dir, prompt) if baselines_dir.exists() else []
+    intended_match = _resolve_intended_match(
+        comparison_results=outcome.comparison_results,
+        prompt_matched_examples=prompt_matched_examples,
+        target_example_id=target_example_id,
+    )
+    drift_summary, drift_primary_causes = _build_drift_summary(
+        baselines_dir=baselines_dir,
+        normalized_path=outcome.capture.normalized_path,
+        intended_match_example_id=intended_match.example_id if intended_match else None,
+        intended_match_score=intended_match.score if intended_match else None,
+    )
     return ChatRunSummary(
         final_message=final_message,
         strategy_id=outcome.strategy.strategy_id,
@@ -264,6 +300,10 @@ def run_chat(
         approval_request_path=outcome.approval_request_path,
         closest_match_example_id=closest_match.example_id if closest_match else None,
         closest_match_score=closest_match.score if closest_match else None,
+        intended_match_example_id=intended_match.example_id if intended_match else None,
+        intended_match_score=intended_match.score if intended_match else None,
+        drift_summary=drift_summary,
+        drift_primary_causes=drift_primary_causes,
     )
 
 
@@ -309,3 +349,43 @@ def _should_short_circuit_roma_attempts(*, prompt: str, attempt: RomaAttemptResu
     has_tool_events = any(row.get("event_type") in {"tool_call_request", "tool_call_result"} for row in rows)
     final_message = extract_final_message(attempt.result.normalized_path)
     return bool(final_message) and not has_tool_events and not is_empty_runtime_fallback(final_message)
+
+
+def _resolve_intended_match(
+    *,
+    comparison_results: list[BaselineComparison],
+    prompt_matched_examples: list[str],
+    target_example_id: str | None,
+) -> BaselineComparison | None:
+    if target_example_id:
+        for result in comparison_results:
+            if result.example_id == target_example_id:
+                return result
+    if not prompt_matched_examples:
+        return None
+    prompt_matched_results = [item for item in comparison_results if item.example_id in prompt_matched_examples]
+    return best_comparison_match(prompt_matched_results)
+
+
+def _build_drift_summary(
+    *,
+    baselines_dir: Path,
+    normalized_path: Path | None,
+    intended_match_example_id: str | None,
+    intended_match_score: int | None,
+) -> tuple[str | None, list[str]]:
+    if (
+        intended_match_example_id is None
+        or intended_match_score is None
+        or intended_match_score == 0
+        or normalized_path is None
+        or not normalized_path.exists()
+    ):
+        return (None, [])
+    expected_path = baselines_dir / intended_match_example_id / "normalized.jsonl"
+    if not expected_path.exists():
+        return (None, [])
+    analysis = analyze_trace_drift(read_jsonl(expected_path), read_jsonl(normalized_path))
+    if not analysis.categories:
+        return (None, [])
+    return (analysis.summary, analysis.primary_causes)

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from autonomos.app import extract_final_message
+from autonomos.app import _build_drift_summary, extract_final_message
 from autonomos.io import write_jsonl
 
 
@@ -47,3 +47,37 @@ def test_extract_final_message_used_for_roma_final_output(tmp_path: Path):
     )
 
     assert extract_final_message(normalized) != "요청을 처리했지만 텍스트 응답이 없습니다."
+
+
+def test_build_drift_summary_reports_expected_categories(tmp_path: Path):
+    baselines_dir = tmp_path / "goldens" / "codex-readme-inspection"
+    baselines_dir.mkdir(parents=True)
+    expected = baselines_dir / "normalized.jsonl"
+    actual = tmp_path / "actual.jsonl"
+    write_jsonl(
+        expected,
+        [
+            {"event_type": "tool_call_request", "payload": {"tool_name": "list_dir"}},
+            {"event_type": "tool_call_result", "payload": {"tool_name": "list_dir", "output": "README.md"}},
+            {"event_type": "assistant_message", "payload": {"text": "I inspected the repo."}},
+        ],
+    )
+    write_jsonl(
+        actual,
+        [
+            {"event_type": "tool_call_request", "payload": {"tool_name": "bash"}},
+            {"event_type": "tool_call_result", "payload": {"tool_name": "bash", "output": "README.md"}},
+            {"event_type": "assistant_message", "payload": {"text": "Done."}},
+        ],
+    )
+
+    summary, causes = _build_drift_summary(
+        baselines_dir=tmp_path / "goldens",
+        normalized_path=actual,
+        intended_match_example_id="codex-readme-inspection",
+        intended_match_score=3,
+    )
+
+    assert summary is not None
+    assert "tool_routing" in summary
+    assert "tool_routing" in causes

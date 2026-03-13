@@ -519,8 +519,7 @@ def main() -> int:
             print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
             print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
-            if summary.closest_match_example_id is not None:
-                print(f"[closest-match] {summary.closest_match_example_id} (score={summary.closest_match_score})")
+            _print_match_metadata(summary)
             return 0
         if args.command == "review":
             session_id = _resolve_session_id(args.session_id, args.new_session)
@@ -558,8 +557,7 @@ def main() -> int:
             print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
             print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
-            if summary.closest_match_example_id is not None:
-                print(f"[closest-match] {summary.closest_match_example_id} (score={summary.closest_match_score})")
+            _print_match_metadata(summary)
             return 0
         if args.command == "resume":
             session_id = _resolve_session_id(args.session_id, args.new_session)
@@ -598,8 +596,7 @@ def main() -> int:
             print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
             print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
-            if summary.closest_match_example_id is not None:
-                print(f"[closest-match] {summary.closest_match_example_id} (score={summary.closest_match_score})")
+            _print_match_metadata(summary)
             return 0
         if args.command == "transcript":
             _print_transcript(read_jsonl(Path(args.normalized)), show_deltas=args.show_deltas)
@@ -725,8 +722,7 @@ def _print_repl_summary(summary) -> None:
         print(f"[request-user-input] {summary.request_user_input_path}")
     if summary.approval_request_path:
         print(f"[approval-request] {summary.approval_request_path}")
-    if summary.closest_match_example_id is not None:
-        print(f"[closest-match] {summary.closest_match_example_id} (score={summary.closest_match_score})")
+    _print_match_metadata(summary)
 
 
 def _handle_repl_follow_up(
@@ -764,6 +760,25 @@ def _handle_repl_follow_up(
         request_user_input_response_path=user_input_response,
         approval_response_path=approval_response,
     )
+
+
+def _print_match_metadata(summary) -> None:
+    intended_id = getattr(summary, "intended_match_example_id", None)
+    intended_score = getattr(summary, "intended_match_score", None)
+    if intended_id is not None:
+        print(f"[intended-golden] {intended_id} (score={intended_score})")
+    closest_id = getattr(summary, "closest_match_example_id", None)
+    closest_score = getattr(summary, "closest_match_score", None)
+    if closest_id is not None:
+        print(f"[closest-match] {closest_id} (score={closest_score})")
+    drift_summary = getattr(summary, "drift_summary", None)
+    drift_primary_causes = getattr(summary, "drift_primary_causes", [])
+    if drift_summary:
+        print(f"[drift] {drift_summary}")
+    elif intended_id is not None and intended_score == 0:
+        print("[drift] aligned")
+    if drift_primary_causes:
+        print(f"[drift-causes] {', '.join(drift_primary_causes)}")
 
 
 def _print_transcript(rows: list[dict], *, show_deltas: bool) -> None:
