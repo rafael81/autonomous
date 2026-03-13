@@ -114,6 +114,7 @@ def test_chat_new_session_uses_generated_id(monkeypatch, capsys, tmp_path: Path)
     captured = capsys.readouterr()
     assert exit_code == 0
     assert captured_kwargs["session_id"].startswith("session-")
+    assert "[strategy] simple_answer -> codex-simple-hello" in captured.out
     assert "[session-id] session-" in captured.out
     assert "[intended-golden] codex-simple-hello (score=0)" in captured.out
     assert "[drift] aligned" in captured.out
@@ -244,9 +245,44 @@ def test_chat_prints_drift_metadata_when_present(monkeypatch, capsys, tmp_path: 
 
     captured = capsys.readouterr()
     assert exit_code == 0
+    assert "[strategy] tool_oriented -> codex-readme-inspection" in captured.out
     assert "[intended-golden] codex-readme-inspection (score=3)" in captured.out
     assert "[drift] tool_routing: expected tool order=['list_dir'] actual=['bash']" in captured.out
     assert "[drift-causes] tool_routing, final_answer_formatting" in captured.out
+
+
+def test_chat_strategy_label_falls_back_to_closest_match(monkeypatch, capsys, tmp_path: Path):
+    class Summary:
+        final_message = "summary"
+        strategy_id = "tool_oriented"
+        baseline_example_id = "example-03-single-tool"
+        attempted_strategies = ["tool_oriented"]
+        orchestration_summary = "approval=no, request_user_input=no, retry=no"
+        session_dir = tmp_path / "capture"
+        normalized_path = None
+        promoted_example_dir = None
+        baseline_matches = 0
+        baseline_total = 10
+        comparison_summary_path = None
+        request_user_input_path = None
+        adaptive_notes = "Attempt scores: [3]"
+        memory_path = None
+        approval_request_path = None
+        intended_match_example_id = None
+        intended_match_score = None
+        drift_summary = None
+        drift_primary_causes = []
+        closest_match_example_id = "codex-project-structure-analysis"
+        closest_match_score = 2
+
+    monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: Summary())
+    monkeypatch.setattr(sys, "argv", ["autonomos", "chat", "inspect the repo"])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "[strategy] tool_oriented -> codex-project-structure-analysis" in captured.out
 
 
 def test_import_capture_golden_uses_prompt_file(monkeypatch, capsys, tmp_path: Path):

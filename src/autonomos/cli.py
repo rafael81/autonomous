@@ -500,7 +500,7 @@ def main() -> int:
                 print(summary.final_message)
             else:
                 print("No final assistant message was captured.")
-            print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+            print(f"[strategy] {summary.strategy_id} -> {_strategy_reference_label(summary)}")
             print(f"[attempts] {', '.join(summary.attempted_strategies)}")
             print(f"[policy] {summary.orchestration_summary}")
             print(f"[session] {summary.session_dir}")
@@ -544,7 +544,7 @@ def main() -> int:
             else:
                 print("No final assistant message was captured.")
             print(f"[review-target] {review_request.user_facing_hint}")
-            print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+            print(f"[strategy] {summary.strategy_id} -> {_strategy_reference_label(summary)}")
             print(f"[attempts] {', '.join(summary.attempted_strategies)}")
             print(f"[policy] {summary.orchestration_summary}")
             print(f"[session] {summary.session_dir}")
@@ -583,7 +583,7 @@ def main() -> int:
                 print(summary.final_message)
             else:
                 print("No final assistant message was captured.")
-            print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+            print(f"[strategy] {summary.strategy_id} -> {_strategy_reference_label(summary)}")
             print(f"[attempts] {', '.join(summary.attempted_strategies)}")
             print(f"[policy] {summary.orchestration_summary}")
             print(f"[session] {summary.session_dir}")
@@ -716,7 +716,7 @@ def _print_repl_summary(summary) -> None:
         print(summary.final_message)
     else:
         print("No final assistant message was captured.")
-    print(f"[strategy] {summary.strategy_id} -> {summary.baseline_example_id}")
+    print(f"[strategy] {summary.strategy_id} -> {_strategy_reference_label(summary)}")
     print(f"[policy] {summary.orchestration_summary}")
     if summary.request_user_input_path:
         print(f"[request-user-input] {summary.request_user_input_path}")
@@ -779,6 +779,16 @@ def _print_match_metadata(summary) -> None:
         print("[drift] aligned")
     if drift_primary_causes:
         print(f"[drift-causes] {', '.join(drift_primary_causes)}")
+
+
+def _strategy_reference_label(summary) -> str:
+    intended_id = getattr(summary, "intended_match_example_id", None)
+    if intended_id:
+        return intended_id
+    closest_id = getattr(summary, "closest_match_example_id", None)
+    if closest_id:
+        return closest_id
+    return getattr(summary, "baseline_example_id", "unknown")
 
 
 def _print_transcript(rows: list[dict], *, show_deltas: bool) -> None:
