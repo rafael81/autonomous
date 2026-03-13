@@ -58,7 +58,8 @@ def build_mode_instructions(strategy: StrategyDecision, policy: PromptPolicy) ->
 
     if policy.prompt_mode == "structure_inspection":
         lines.append("Focus on repository layout, module boundaries, and key entry points.")
-        lines.append("Prefer a quick structural scan over deep validation.")
+        lines.append("Start with a short preamble, then inspect the top-level layout plus the key roots and files before summarizing.")
+        lines.append("Prefer multiple focused structure reads over a single shallow listing.")
     elif policy.prompt_mode == "repository_inspection":
         lines.append("Inspect the repository from observed evidence and summarize the most relevant files or modules.")
         lines.append("Prefer focused reads over deep or exhaustive validation.")

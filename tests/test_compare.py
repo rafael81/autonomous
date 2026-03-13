@@ -52,3 +52,61 @@ def test_compare_normalized_sequences_ignores_user_input():
 
     assert result.matches is True
     assert result.score == 0
+
+
+def test_compare_normalized_sequences_relaxes_inspection_tool_names():
+    expected = [
+        {"event_type": "session_start", "payload": {}},
+        {"event_type": "task_started", "payload": {}},
+        {"event_type": "assistant_message", "payload": {"text": "Scanning structure."}},
+        {"event_type": "tool_call_request", "payload": {"tool_name": "shell"}},
+        {"event_type": "tool_call_result", "payload": {"tool_name": "shell"}},
+        {"event_type": "assistant_message", "payload": {"text": "Done."}},
+        {"event_type": "task_complete", "payload": {}},
+        {"event_type": "session_end", "payload": {}},
+    ]
+    actual = [
+        {"event_type": "session_start", "payload": {}},
+        {"event_type": "task_started", "payload": {}},
+        {"event_type": "assistant_message", "payload": {"text": "Scanning structure."}},
+        {"event_type": "tool_call_request", "payload": {"tool_name": "list_dir"}},
+        {"event_type": "tool_call_result", "payload": {"tool_name": "list_dir"}},
+        {"event_type": "assistant_message", "payload": {"text": "Done."}},
+        {"event_type": "task_complete", "payload": {}},
+        {"event_type": "session_end", "payload": {}},
+    ]
+
+    result = compare_normalized_sequences(expected, actual)
+
+    assert result.matches is True
+    assert result.score == 0
+
+
+def test_compare_normalized_sequences_relaxes_inspection_phase_counts():
+    expected = [
+        {"event_type": "session_start", "payload": {}},
+        {"event_type": "task_started", "payload": {}},
+        {"event_type": "assistant_message", "payload": {"text": "Scanning structure."}},
+        {"event_type": "tool_call_request", "payload": {"tool_name": "shell"}},
+        {"event_type": "tool_call_result", "payload": {"tool_name": "shell"}},
+        {"event_type": "tool_call_request", "payload": {"tool_name": "shell"}},
+        {"event_type": "tool_call_result", "payload": {"tool_name": "shell"}},
+        {"event_type": "assistant_message", "payload": {"text": "Done."}},
+        {"event_type": "task_complete", "payload": {}},
+        {"event_type": "session_end", "payload": {}},
+    ]
+    actual = [
+        {"event_type": "session_start", "payload": {}},
+        {"event_type": "task_started", "payload": {}},
+        {"event_type": "assistant_message", "payload": {"text": "Scanning structure."}},
+        {"event_type": "tool_call_request", "payload": {"tool_name": "list_dir"}},
+        {"event_type": "tool_call_result", "payload": {"tool_name": "list_dir"}},
+        {"event_type": "assistant_message", "payload": {"text": "Done."}},
+        {"event_type": "task_complete", "payload": {}},
+        {"event_type": "session_end", "payload": {}},
+    ]
+
+    result = compare_normalized_sequences(expected, actual)
+
+    assert result.matches is True
+    assert result.score == 0

@@ -14,6 +14,7 @@ class PromptPolicy:
     tool_budget: int
     max_repeated_tool_calls: int
     preferred_roots: tuple[str, ...]
+    required_roots: tuple[str, ...]
     excluded_roots: tuple[str, ...]
     stop_after_evidence: int
     preferred_tools: tuple[str, ...]
@@ -25,6 +26,7 @@ DEFAULT_POLICY = PromptPolicy(
     tool_budget=6,
     max_repeated_tool_calls=2,
     preferred_roots=("src", "tests", "README.md", "pyproject.toml"),
+    required_roots=(),
     excluded_roots=(".git", ".venv", "node_modules", "captures", "examples_live", ".autonomos"),
     stop_after_evidence=2,
     preferred_tools=("read_file", "grep_text", "search_files", "glob_paths", "list_dir"),
@@ -87,6 +89,7 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             tool_budget=8,
             max_repeated_tool_calls=2,
             preferred_roots=("src", "tests", "README.md", "pyproject.toml"),
+            required_roots=("src", "tests"),
             excluded_roots=DEFAULT_POLICY.excluded_roots,
             stop_after_evidence=3,
             preferred_tools=("bash", "glob_paths", "grep_text", "read_file"),
@@ -95,11 +98,12 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
     if structure_prompt:
         return PromptPolicy(
             prompt_mode="structure_inspection",
-            tool_budget=5,
-            max_repeated_tool_calls=2,
-            preferred_roots=("src", "tests", "README.md", "pyproject.toml"),
+            tool_budget=24,
+            max_repeated_tool_calls=8,
+            preferred_roots=("src", "tests", "goldens", "evals", "scripts", "README.md", "pyproject.toml", "AGENTS.md"),
+            required_roots=("src", "tests", "README.md", "pyproject.toml"),
             excluded_roots=DEFAULT_POLICY.excluded_roots,
-            stop_after_evidence=2,
+            stop_after_evidence=5,
             preferred_tools=("list_dir", "glob_paths", "read_file", "search_files", "grep_text"),
             fallback_tool="bash",
         )
@@ -109,6 +113,7 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             tool_budget=8,
             max_repeated_tool_calls=2,
             preferred_roots=("src", "tests", "README.md", "pyproject.toml"),
+            required_roots=("src", "tests", "README.md", "pyproject.toml"),
             excluded_roots=DEFAULT_POLICY.excluded_roots,
             stop_after_evidence=3,
             preferred_tools=("list_dir", "glob_paths", "grep_text", "read_file", "bash"),
@@ -120,6 +125,7 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             tool_budget=5,
             max_repeated_tool_calls=2,
             preferred_roots=("src", "tests", "README.md", "pyproject.toml"),
+            required_roots=("README.md", "pyproject.toml"),
             excluded_roots=DEFAULT_POLICY.excluded_roots,
             stop_after_evidence=2,
             preferred_tools=("list_dir", "read_file", "search_files", "grep_text", "glob_paths"),
@@ -131,6 +137,7 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             tool_budget=6,
             max_repeated_tool_calls=2,
             preferred_roots=("tests", "src", "pyproject.toml", "README.md"),
+            required_roots=("tests", "src"),
             excluded_roots=DEFAULT_POLICY.excluded_roots,
             stop_after_evidence=2,
             preferred_tools=("glob_paths", "grep_text", "read_file", "bash"),

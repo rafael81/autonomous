@@ -25,6 +25,7 @@ const toolCwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : p
 const policy = payload.policy && typeof payload.policy === 'object' ? payload.policy : {};
 const excludedRoots = new Set(Array.isArray(policy.excludedRoots) ? policy.excludedRoots : ['.git', '.venv', 'node_modules']);
 const preferredRoots = Array.isArray(policy.preferredRoots) ? policy.preferredRoots : [];
+const requiredRoots = Array.isArray(policy.requiredRoots) ? policy.requiredRoots : [];
 const toolBudget = Number.isFinite(policy.toolBudget) ? Math.max(1, Number(policy.toolBudget)) : 6;
 const maxRepeatedToolCalls = Number.isFinite(policy.maxRepeatedToolCalls)
   ? Math.max(1, Number(policy.maxRepeatedToolCalls))
@@ -33,6 +34,7 @@ const stopAfterEvidence = Number.isFinite(policy.stopAfterEvidence) ? Math.max(1
 const promptMode = typeof policy.promptMode === 'string' ? policy.promptMode : 'general';
 const inspectionMode = promptMode === 'repository_inspection' || promptMode === 'inspection_and_verification';
 const projectAnalysisMode = promptMode === 'project_analysis';
+const structureInspectionMode = promptMode === 'structure_inspection';
 const toolUsage = new Map();
 let evidenceCount = 0;
 
@@ -188,6 +190,7 @@ async function listDirTool(args = {}) {
         preferredRoots.length === 0 ||
         relativeFromWorkspace(dir) !== '.' ||
         preferredRoots.includes(entry.name) ||
+        requiredRoots.includes(entry.name) ||
         !entry.isDirectory()
     )
     .slice(0, maxEntries);
@@ -520,8 +523,96 @@ agent.on('toolResult', (toolResult) => emit({ type: 'tool_result', ...toolResult
 agent.on('error', (message) => emit({ type: 'error', message }));
 agent.on('finalize', (message) => emit({ type: 'assistant_message', text: message.content || '', raw: message }));
 
+function buildStructurePreamble() {
+  return 'I will inspect the repository structure first, then summarize the module boundaries and key entry points.';
+}
+
+async function runPreflightTool(name, args) {
+  const callId = `prefight_${name}_${crypto.randomUUID()}`;
+  emit({ type: 'tool_call', callId, name, args });
+  const runner = localTools[name];
+  if (!runner) {
+    const output = `Error: unknown tool ${name}.`;
+    emit({ type: 'tool_result', callId, name, output });
+    return output;
+  }
+  const output = await runner(args);
+  emit({ type: 'tool_result', callId, name, output });
+  return output;
+}
+
+function summarizePreflightEvidence(evidenceRows) {
+  if (evidenceRows.length === 0) {
+    return '';
+  }
+  const lines = ['Observed structure snapshot:'];
+  for (const row of evidenceRows) {
+    const preview = String(row.output || '')
+      .split('\n')
+      .filter(Boolean)
+      .slice(0, 4)
+      .join('; ');
+    if (!preview) continue;
+    lines.push(`- ${row.label}: ${preview}`);
+  }
+  return lines.join('\n') + '\n\n';
+}
+
+function buildPreflightPrompt(summary, originalPrompt) {
+  if (!summary) {
+    return originalPrompt;
+  }
+  return (
+    summary +
+    'Use the observed structure snapshot as your primary evidence. Summarize the repository structure and key module boundaries. Only call more tools if the snapshot is clearly insufficient.\n\n' +
+    originalPrompt
+  );
+}
+
+async function runStructureInspectionPreflight() {
+  emit({ type: 'assistant_message', text: buildStructurePreamble(), raw: { source: 'structure_preflight' } });
+  const evidenceRows = [];
+  const rootListing = await runPreflightTool('list_dir', { path: '.', max_entries: 24 });
+  evidenceRows.push({ label: 'top_level', output: rootListing });
+
+  const topLevelEntries = String(rootListing)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [kind, ...rest] = line.split('\t');
+      return { kind, name: rest.join('\t') };
+    });
+
+  const availableNames = new Set(topLevelEntries.map((entry) => entry.name));
+  for (const rootName of requiredRoots) {
+    if (!availableNames.has(rootName)) continue;
+    if (rootName.endsWith('.md') || rootName.endsWith('.toml')) {
+      const output = await runPreflightTool('read_file', { path: rootName, start_line: 1, end_line: 40 });
+      evidenceRows.push({ label: rootName, output });
+      continue;
+    }
+    const output = await runPreflightTool('list_dir', { path: rootName, max_entries: 16 });
+    evidenceRows.push({ label: rootName, output });
+  }
+
+  for (const rootName of preferredRoots) {
+    if (evidenceRows.length >= 6) break;
+    if (!availableNames.has(rootName)) continue;
+    if (requiredRoots.includes(rootName)) continue;
+    if (rootName.endsWith('.md') || rootName.endsWith('.toml')) continue;
+    const output = await runPreflightTool('list_dir', { path: rootName, max_entries: 12 });
+    evidenceRows.push({ label: rootName, output });
+  }
+
+  return summarizePreflightEvidence(evidenceRows);
+}
+
 try {
-  await agent.chat(prompt, history);
+  const promptWithPreflight = structureInspectionMode
+    ? buildPreflightPrompt(await runStructureInspectionPreflight(), prompt)
+    : prompt;
+  await agent.chat(promptWithPreflight, history);
   emit({
     type: 'session_end',
     ok: true,

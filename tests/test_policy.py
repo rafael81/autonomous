@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from autonomos.io import write_jsonl
+from autonomos.instructions import build_mode_instructions
 from autonomos.policy import infer_prompt_policy, rank_roma_attempt
 from autonomos.roma_runtime import RomaAttemptResult, RomaChatResult
 from autonomos.strategy import choose_strategy
@@ -10,7 +11,10 @@ def test_infer_prompt_policy_for_repository_inspection():
     policy = infer_prompt_policy("현재 프로젝트 구조 분석")
 
     assert policy.prompt_mode == "structure_inspection"
-    assert policy.tool_budget == 5
+    assert policy.tool_budget == 24
+    assert policy.max_repeated_tool_calls == 8
+    assert policy.required_roots == ("src", "tests", "README.md", "pyproject.toml")
+    assert "goldens" in policy.preferred_roots
     assert "src" in policy.preferred_roots
     assert "captures" in policy.excluded_roots
 
@@ -20,6 +24,7 @@ def test_infer_prompt_policy_for_repository_analysis():
 
     assert policy.prompt_mode == "repository_inspection"
     assert policy.tool_budget == 5
+    assert policy.required_roots == ("README.md", "pyproject.toml")
     assert policy.preferred_tools[0] == "list_dir"
 
 
@@ -28,6 +33,16 @@ def test_infer_prompt_policy_for_code_review():
 
     assert policy.prompt_mode == "code_review"
     assert policy.preferred_tools[0] == "bash"
+
+
+def test_structure_inspection_instructions_require_staged_scan():
+    strategy = choose_strategy("현재 프로젝트 구조 분석")
+    policy = infer_prompt_policy("현재 프로젝트 구조 분석")
+
+    instructions = build_mode_instructions(strategy, policy)
+
+    assert "Start with a short preamble" in instructions
+    assert "multiple focused structure reads" in instructions
 
 
 def test_rank_roma_attempt_penalizes_empty_runtime_fallback(tmp_path: Path):

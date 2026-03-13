@@ -65,6 +65,7 @@ def run_roma_chat(
             "toolBudget": policy.tool_budget,
             "maxRepeatedToolCalls": policy.max_repeated_tool_calls,
             "preferredRoots": list(policy.preferred_roots),
+            "requiredRoots": list(policy.required_roots),
             "excludedRoots": list(policy.excluded_roots),
             "stopAfterEvidence": policy.stop_after_evidence,
             "preferredTools": list(policy.preferred_tools),
