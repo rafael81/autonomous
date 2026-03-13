@@ -116,6 +116,8 @@ def test_chat_new_session_uses_generated_id(monkeypatch, capsys, tmp_path: Path)
     assert captured_kwargs["session_id"].startswith("session-")
     assert "[strategy] simple_answer -> codex-simple-hello" in captured.out
     assert "[session-id] session-" in captured.out
+    assert "[parity] exact match for codex-simple-hello" in captured.out
+    assert "[coverage] 0/0 aligned traces" in captured.out
     assert "[intended-golden] codex-simple-hello (score=0)" in captured.out
     assert "[drift] aligned" in captured.out
     assert "[closest-match] roma-simple-hello (score=0)" in captured.out
@@ -246,6 +248,8 @@ def test_chat_prints_drift_metadata_when_present(monkeypatch, capsys, tmp_path: 
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "[strategy] tool_oriented -> codex-readme-inspection" in captured.out
+    assert "[parity] drift from codex-readme-inspection (score=3)" in captured.out
+    assert "[coverage] 0/10 aligned traces" in captured.out
     assert "[intended-golden] codex-readme-inspection (score=3)" in captured.out
     assert "[drift] tool_routing: expected tool order=['list_dir'] actual=['bash']" in captured.out
     assert "[drift-causes] tool_routing, final_answer_formatting" in captured.out
@@ -283,6 +287,8 @@ def test_chat_strategy_label_falls_back_to_closest_match(monkeypatch, capsys, tm
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "[strategy] tool_oriented -> codex-project-structure-analysis" in captured.out
+    assert "[parity] closest golden is codex-project-structure-analysis (score=2)" in captured.out
+    assert "[coverage] 0/10 aligned traces" in captured.out
 
 
 def test_import_capture_golden_uses_prompt_file(monkeypatch, capsys, tmp_path: Path):

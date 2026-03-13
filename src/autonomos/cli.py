@@ -518,7 +518,7 @@ def main() -> int:
                 print(f"[memory] {summary.memory_path}")
             print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
-            print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+            _print_parity_summary(summary)
             _print_match_metadata(summary)
             return 0
         if args.command == "review":
@@ -556,7 +556,7 @@ def main() -> int:
                 print(f"[comparison] {summary.comparison_summary_path}")
             print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
-            print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+            _print_parity_summary(summary)
             _print_match_metadata(summary)
             return 0
         if args.command == "resume":
@@ -595,7 +595,7 @@ def main() -> int:
                 print(f"[memory] {summary.memory_path}")
             print(f"[session-id] {session_id}")
             print(f"[adaptive] {summary.adaptive_notes}")
-            print(f"[baseline] {summary.baseline_matches}/{summary.baseline_total} matched")
+            _print_parity_summary(summary)
             _print_match_metadata(summary)
             return 0
         if args.command == "transcript":
@@ -779,6 +779,21 @@ def _print_match_metadata(summary) -> None:
         print("[drift] aligned")
     if drift_primary_causes:
         print(f"[drift-causes] {', '.join(drift_primary_causes)}")
+
+
+def _print_parity_summary(summary) -> None:
+    intended_id = getattr(summary, "intended_match_example_id", None)
+    intended_score = getattr(summary, "intended_match_score", None)
+    closest_id = getattr(summary, "closest_match_example_id", None)
+    closest_score = getattr(summary, "closest_match_score", None)
+    if intended_id is not None and intended_score is not None:
+        if intended_score == 0:
+            print(f"[parity] exact match for {intended_id}")
+        else:
+            print(f"[parity] drift from {intended_id} (score={intended_score})")
+    elif closest_id is not None and closest_score is not None:
+        print(f"[parity] closest golden is {closest_id} (score={closest_score})")
+    print(f"[coverage] {summary.baseline_matches}/{summary.baseline_total} aligned traces")
 
 
 def _strategy_reference_label(summary) -> str:
