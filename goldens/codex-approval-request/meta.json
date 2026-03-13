@@ -11,7 +11,6 @@
     "codex",
     "exec",
     "--json",
-    "--dangerously-bypass-approvals-and-sandbox",
     "Before making a risky filesystem change, ask for approval."
   ],
   "source_raw": "codex_traces/codex-approval-request/raw.jsonl",

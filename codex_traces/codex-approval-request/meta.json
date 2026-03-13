@@ -1,10 +1,9 @@
 {
-  "captured_at": "2026-03-13T15:21:57+00:00",
+  "captured_at": "2026-03-13T15:47:45+00:00",
   "command": [
     "codex",
     "exec",
     "--json",
-    "--dangerously-bypass-approvals-and-sandbox",
     "Before making a risky filesystem change, ask for approval."
   ],
   "returncode": 0,
@@ -21,7 +20,6 @@
     "codex",
     "exec",
     "--json",
-    "--dangerously-bypass-approvals-and-sandbox",
     "Before making a risky filesystem change, ask for approval."
   ]
 }

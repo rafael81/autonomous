@@ -10,7 +10,7 @@ Before making a risky filesystem change, ask for approval.
 ## Event Timeline
 1.  session_start
 2.  task_started
-3.  assistant_message: I will ask before any risky filesystem change. For routine read-only inspection 
+3.  assistant_message: Understood. Before any risky filesystem change, I’ll ask for your approval first
 4.  task_complete
 5.  session_end
 
@@ -18,10 +18,10 @@ Before making a risky filesystem change, ask for approval.
 - none
 
 ## Assistant Message Flow
-- I will ask before any risky filesystem change. For routine read-only inspection or clearly safe edits, I’ll proceed normally.
+- Understood. Before any risky filesystem change, I’ll ask for your approval first.
 
 ## Final Result
-I will ask before any risky filesystem change. For routine read-only inspection or clearly safe edits, I’ll proceed normally.
+Understood. Before any risky filesystem change, I’ll ask for your approval first.
 
 ## Notes
 Imported from a real normalized trace.
