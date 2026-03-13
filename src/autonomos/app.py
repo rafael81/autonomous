@@ -115,7 +115,12 @@ def run_chat(
                 has_normalized_output=result.normalized_path.exists(),
                 prompt=prompt,
             )
-            closest_match = best_comparison_match(comparison_results)
+            intended_match = _resolve_intended_match(
+                comparison_results=comparison_results,
+                prompt_matched_examples=prompt_matched_examples,
+                target_example_id=target_example_id,
+            )
+            closest_match = intended_match or best_comparison_match(comparison_results)
             attempts.append(
                 RomaAttemptResult(
                     result=result,
@@ -173,12 +178,12 @@ def run_chat(
         )
         request_user_input_path = None
         approval_request_path = None
-        closest_match = best_comparison_match(comparison_results)
         intended_match = _resolve_intended_match(
             comparison_results=comparison_results,
             prompt_matched_examples=prompt_matched_examples,
             target_example_id=target_example_id,
         )
+        closest_match = intended_match or best_comparison_match(comparison_results)
         drift_summary, drift_primary_causes = _build_drift_summary(
             baselines_dir=baselines_dir,
             normalized_path=result.normalized_path,
@@ -269,13 +274,13 @@ def run_chat(
             session_id,
             [MemoryTurn(role="user", text=prompt), MemoryTurn(role="assistant", text=final_message)],
         )
-    closest_match = best_comparison_match(outcome.comparison_results)
     prompt_matched_examples = find_examples_for_prompt(baselines_dir, prompt) if baselines_dir.exists() else []
     intended_match = _resolve_intended_match(
         comparison_results=outcome.comparison_results,
         prompt_matched_examples=prompt_matched_examples,
         target_example_id=target_example_id,
     )
+    closest_match = intended_match or best_comparison_match(outcome.comparison_results)
     drift_summary, drift_primary_causes = _build_drift_summary(
         baselines_dir=baselines_dir,
         normalized_path=outcome.capture.normalized_path,

@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from autonomos.app import _build_drift_summary, extract_final_message
+from autonomos.app import _build_drift_summary, _resolve_intended_match, extract_final_message
+from autonomos.baseline import BaselineComparison
 from autonomos.io import write_jsonl
 
 
@@ -81,3 +82,31 @@ def test_build_drift_summary_reports_expected_categories(tmp_path: Path):
     assert summary is not None
     assert "tool_routing" in summary
     assert "tool_routing" in causes
+
+
+def test_resolve_intended_match_prefers_prompt_matched_example():
+    comparison_results = [
+        BaselineComparison(
+            example_id="codex-approval-request",
+            matches=True,
+            summary="matched structurally",
+            details=[],
+            score=0,
+        ),
+        BaselineComparison(
+            example_id="codex-simple-hello",
+            matches=True,
+            summary="matched structurally",
+            details=[],
+            score=0,
+        ),
+    ]
+
+    result = _resolve_intended_match(
+        comparison_results=comparison_results,
+        prompt_matched_examples=["codex-simple-hello"],
+        target_example_id=None,
+    )
+
+    assert result is not None
+    assert result.example_id == "codex-simple-hello"
