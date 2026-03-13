@@ -23,6 +23,7 @@ def test_transcript_pretty_prints_tool_events(monkeypatch, capsys, tmp_path: Pat
         [
             {"ts": "", "source": "fixture", "channel": "user", "event_type": "user_input", "turn_id": None, "message_id": None, "call_id": None, "payload": {"text": "hello"}, "raw": {}},
             {"ts": "", "source": "fixture", "channel": "assistant", "event_type": "assistant_message_delta", "turn_id": None, "message_id": None, "call_id": None, "payload": {"text": "do"}, "raw": {}},
+            {"ts": "", "source": "fixture", "channel": "roma_ws", "event_type": "status_update", "turn_id": None, "message_id": None, "call_id": None, "payload": {"text": "Thinking..."}, "raw": {}},
             {"ts": "", "source": "fixture", "channel": "tool", "event_type": "tool_call_request", "turn_id": None, "message_id": None, "call_id": "c1", "payload": {"tool_name": "bash", "args": {"command": "pwd"}}, "raw": {}},
             {"ts": "", "source": "fixture", "channel": "tool", "event_type": "tool_call_result", "turn_id": None, "message_id": None, "call_id": "c1", "payload": {"tool_name": "bash", "output": "ok"}, "raw": {}},
             {"ts": "", "source": "fixture", "channel": "assistant", "event_type": "assistant_message", "turn_id": None, "message_id": None, "call_id": None, "payload": {"text": "done"}, "raw": {}},
@@ -35,6 +36,7 @@ def test_transcript_pretty_prints_tool_events(monkeypatch, capsys, tmp_path: Pat
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "user> hello" in captured.out
+    assert "status> Thinking..." in captured.out
     assert "tool> request bash" in captured.out
     assert "tool> result bash ok" in captured.out
     assert "assistant> done" in captured.out
@@ -239,6 +241,8 @@ def test_chat_prints_drift_metadata_when_present(monkeypatch, capsys, tmp_path: 
         drift_primary_causes = ["tool_routing", "final_answer_formatting"]
         closest_match_example_id = "codex-readme-inspection"
         closest_match_score = 3
+        validation_hints = ["Run `./.venv/bin/python -m pytest -q`"]
+        runtime_diagnostics = ["tool results captured", "streamed assistant output observed"]
 
     monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: Summary())
     monkeypatch.setattr(sys, "argv", ["autonomos", "chat", "inspect the repo"])
@@ -253,6 +257,8 @@ def test_chat_prints_drift_metadata_when_present(monkeypatch, capsys, tmp_path: 
     assert "[intended-golden] codex-readme-inspection (score=3)" in captured.out
     assert "[drift] tool_routing: same inspection family, but the runtime used a shorter built-in tool path" in captured.out
     assert "[drift-causes] tool_routing, final_answer_formatting" in captured.out
+    assert "[validation] Run `./.venv/bin/python -m pytest -q`" in captured.out
+    assert "[runtime] tool results captured; streamed assistant output observed" in captured.out
 
 
 def test_chat_status_summary_prefers_status_golden_label(monkeypatch, capsys, tmp_path: Path):
@@ -577,3 +583,23 @@ def test_run_regression_prints_summary(monkeypatch, capsys, tmp_path: Path):
     assert exit_code == 0
     assert "passed=1 total=1" in captured.out
     assert "PASS hello: strategy=simple_answer artifact=no expected_score=0 tool_family=none closest=hello score=0" in captured.out
+
+
+def test_run_generalization_prints_summary(monkeypatch, capsys):
+    class Result:
+        prompt = "hello"
+        strategy_id = "simple_answer"
+        tool_family = "none"
+        closest_match_example_id = "codex-simple-hello"
+        closest_match_score = 0
+        final_message = "Hello!"
+        session_dir = "captures/demo"
+
+    monkeypatch.setattr("autonomos.cli.run_generalization_suite", lambda **kwargs: [Result()])
+    monkeypatch.setattr(sys, "argv", ["autonomos", "run-generalization", "hello"])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "prompt=hello\tstrategy=simple_answer\ttool_family=none\tclosest=codex-simple-hello\tscore=0" in captured.out

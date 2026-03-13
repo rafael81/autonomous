@@ -57,6 +57,8 @@ class ChatRunSummary:
     intended_match_score: int | None
     drift_summary: str | None
     drift_primary_causes: list[str]
+    validation_hints: list[str]
+    runtime_diagnostics: list[str]
 
 
 def run_chat(
@@ -258,6 +260,8 @@ def run_chat(
             intended_match_score=intended_match.score if intended_match else None,
             drift_summary=drift_summary,
             drift_primary_causes=drift_primary_causes,
+            validation_hints=_suggest_validation_hints(prompt=prompt, final_message=final_message, cwd=cwd),
+            runtime_diagnostics=_collect_runtime_diagnostics(result.normalized_path),
         )
 
     outcome: ObservationRunResult = observe_prompt(
@@ -410,3 +414,41 @@ def _build_drift_summary(
     if not analysis.categories:
         return (None, [])
     return (analysis.summary, analysis.primary_causes)
+
+
+def _suggest_validation_hints(*, prompt: str, final_message: str | None, cwd: Path) -> list[str]:
+    text = prompt.lower()
+    hints: list[str] = []
+    if "review" in text or "current code changes" in text or "diff" in text:
+        if (cwd / "tests").exists():
+            hints.append("Run `./.venv/bin/python -m pytest -q` to validate the reviewed changes against the test suite.")
+        if (cwd / "pyproject.toml").exists():
+            hints.append("Re-run the affected command path after applying fixes to confirm the top finding is resolved.")
+    if final_message and ("implement" in text or "change" in text or "fix" in text):
+        hints.append("Validate the touched behavior with the narrowest reproducible command before broad regression runs.")
+    return hints
+
+
+def _collect_runtime_diagnostics(normalized_path: Path | None) -> list[str]:
+    if normalized_path is None or not normalized_path.exists():
+        return ["missing normalized trace"]
+    rows = read_jsonl(normalized_path)
+    diagnostics: list[str] = []
+    if any(row.get("event_type") == "assistant_message_delta" for row in rows):
+        diagnostics.append("streamed assistant output observed")
+    if any(row.get("event_type") == "tool_call_result" for row in rows):
+        diagnostics.append("tool results captured")
+    if any(
+        row.get("event_type") == "tool_call_result"
+        and (
+            "exit_code: 1" in str(row.get("payload", {}).get("output", ""))
+            or "command not found" in str(row.get("payload", {}).get("output", "")).lower()
+        )
+        for row in rows
+    ):
+        diagnostics.append("failed tool execution captured")
+    if any(row.get("event_type") == "exec_approval_request" for row in rows):
+        diagnostics.append("approval path observed")
+    if any(row.get("event_type") == "request_user_input" for row in rows):
+        diagnostics.append("request-user-input path observed")
+    return diagnostics or ["no special runtime diagnostics"]

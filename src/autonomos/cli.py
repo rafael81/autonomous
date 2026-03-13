@@ -35,7 +35,14 @@ from .live_capture import run_capture, save_capture_session, save_capture_snapsh
 from .memory import list_sessions
 from .orchestration import write_approval_response, write_request_user_input_response
 from .review import resolve_review_request
-from .regression import DEFAULT_EVAL_SUITE_PATH, load_eval_suite, run_regression_suite, write_regression_json, write_regression_report
+from .regression import (
+    DEFAULT_EVAL_SUITE_PATH,
+    load_eval_suite,
+    run_generalization_suite,
+    run_regression_suite,
+    write_regression_json,
+    write_regression_report,
+)
 from .scoring import compute_parity_score, format_parity_score
 from .verification import format_verification_results, verify_runtime_against_goldens
 from .workflow import observe_prompt
@@ -179,6 +186,15 @@ def build_parser() -> argparse.ArgumentParser:
     score_parity.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     score_parity.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
     score_parity.add_argument("--suite-path", default=str(DEFAULT_EVAL_SUITE_PATH), help="Path to eval suite JSON.")
+
+    run_generalization = subparsers.add_parser("run-generalization", help="Run prompts outside the fixed goldens and summarize how the runtime generalizes.")
+    run_generalization.add_argument("prompts", nargs="+", help="One or more prompts to run through the default runtime.")
+    run_generalization.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
+    run_generalization.add_argument("--cwd", default=".", help="Working directory for runtime execution.")
+    run_generalization.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    run_generalization.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    run_generalization.add_argument("--baselines-dir", default=DEFAULT_RUNTIME_BASELINES_DIR, help="Baseline examples directory.")
+    run_generalization.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
 
     observe = subparsers.add_parser("observe", help="Run the full observation pipeline: capture, normalize, promote, compare.")
     observe.add_argument("prompt", help="Prompt to send to codex exec.")
@@ -503,6 +519,22 @@ def main() -> int:
             for line in format_parity_score(score):
                 print(line)
             return 0 if score.total_score >= score.max_score else 1
+        if args.command == "run-generalization":
+            results = run_generalization_suite(
+                prompts=args.prompts,
+                profile=args.profile,
+                cwd=Path(args.cwd),
+                captures_dir=Path(args.captures_dir),
+                promote_dir=Path(args.promote_dir),
+                baselines_dir=Path(args.baselines_dir),
+                memory_dir=Path(args.memory_dir),
+            )
+            for result in results:
+                print(
+                    f"prompt={result.prompt}\tstrategy={result.strategy_id}\ttool_family={result.tool_family}\t"
+                    f"closest={result.closest_match_example_id or 'none'}\tscore={result.closest_match_score if result.closest_match_score is not None else '?'}"
+                )
+            return 0
         if args.command == "observe":
             outcome = observe_prompt(
                 prompt=args.prompt,
@@ -962,6 +994,12 @@ def _print_match_metadata(summary) -> None:
         print("[drift] aligned")
     if drift_primary_causes:
         print(f"[drift-causes] {', '.join(drift_primary_causes)}")
+    validation_hints = getattr(summary, "validation_hints", [])
+    for hint in validation_hints:
+        print(f"[validation] {hint}")
+    runtime_diagnostics = getattr(summary, "runtime_diagnostics", [])
+    if runtime_diagnostics:
+        print(f"[runtime] {'; '.join(runtime_diagnostics)}")
 
 
 def _print_parity_summary(summary) -> None:
@@ -997,6 +1035,9 @@ def _print_transcript(rows: list[dict], *, show_deltas: bool) -> None:
         payload = row.get("payload", {})
         if event_type == "assistant_message_delta" and not show_deltas:
             pending_delta = payload.get("text", "")
+            continue
+        if event_type == "status_update":
+            print(f"status> {payload.get('text', '')}")
             continue
         if event_type == "assistant_message":
             if pending_delta and pending_delta != payload.get("text", ""):

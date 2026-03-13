@@ -1,6 +1,13 @@
 from pathlib import Path
 
-from autonomos.app import _build_drift_summary, _default_target_example_id, _resolve_intended_match, extract_final_message
+from autonomos.app import (
+    _build_drift_summary,
+    _collect_runtime_diagnostics,
+    _default_target_example_id,
+    _resolve_intended_match,
+    _suggest_validation_hints,
+    extract_final_message,
+)
 from autonomos.baseline import BaselineComparison
 from autonomos.io import write_jsonl
 
@@ -124,3 +131,33 @@ def test_default_target_example_id_prefers_status_summary_golden(tmp_path: Path)
     )
 
     assert result == "codex-status-summary"
+
+
+def test_suggest_validation_hints_for_review_prompt(tmp_path: Path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+
+    hints = _suggest_validation_hints(
+        prompt="Review the current code changes and provide prioritized findings.",
+        final_message="finding",
+        cwd=tmp_path,
+    )
+
+    assert any("pytest" in hint for hint in hints)
+
+
+def test_collect_runtime_diagnostics_reports_failed_tool_execution(tmp_path: Path):
+    normalized = tmp_path / "normalized.jsonl"
+    write_jsonl(
+        normalized,
+        [
+            {"event_type": "assistant_message_delta", "payload": {"text": "hello"}},
+            {"event_type": "tool_call_result", "payload": {"tool_name": "bash", "output": "exit_code: 1\nstderr:\ncommand not found"}},
+        ],
+    )
+
+    diagnostics = _collect_runtime_diagnostics(normalized)
+
+    assert "streamed assistant output observed" in diagnostics
+    assert "tool results captured" in diagnostics
+    assert "failed tool execution captured" in diagnostics

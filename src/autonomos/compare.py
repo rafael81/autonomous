@@ -14,7 +14,7 @@ class ComparisonResult:
     score: int
 
 
-IGNORED_EVENT_TYPES = {"tool_profile", "assistant_message_delta", "user_input"}
+IGNORED_EVENT_TYPES = {"tool_profile", "assistant_message_delta", "user_input", "status_update"}
 INSPECTION_TOOL_NAMES = {"shell", "bash", "list_dir", "read_file", "grep_text", "glob_paths", "search_files"}
 
 

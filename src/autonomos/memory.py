@@ -44,8 +44,12 @@ def append_session_memory(memory_root: Path, session_id: str, turns: list[Memory
 def render_memory_context(turns: list[MemoryTurn], limit: int = 6) -> str:
     if not turns:
         return ""
-    selected = turns[-limit:]
+    summary_turns = [turn for turn in turns if turn.role == SUMMARY_ROLE]
+    conversational = [turn for turn in turns if turn.role != SUMMARY_ROLE]
+    selected = conversational[-limit:]
     lines = ["Recent conversation context:"]
+    if summary_turns:
+        lines.append(summary_turns[-1].text)
     for turn in selected:
         lines.append(f"- {turn.role}: {turn.text}")
     return "\n".join(lines) + "\n\n"
@@ -77,6 +81,8 @@ def compact_session_rows(rows: list[dict]) -> list[dict]:
 def _summarize_rows(rows: list[dict]) -> str:
     user_points: list[str] = []
     assistant_points: list[str] = []
+    decision_points: list[str] = []
+    pending_points: list[str] = []
     for row in rows:
         text = str(row.get("text", "")).strip()
         if not text:
@@ -86,6 +92,11 @@ def _summarize_rows(rows: list[dict]) -> str:
             user_points.append(snippet)
         else:
             assistant_points.append(snippet)
+        lowered = snippet.lower()
+        if any(token in lowered for token in ("decided", "chosen", "selected", "approved", "direction", "plan")):
+            decision_points.append(snippet)
+        if any(token in lowered for token in ("next", "follow-up", "need", "pending", "continue", "wait")):
+            pending_points.append(snippet)
 
     lines = ["Session summary:"]
     if user_points:
@@ -94,6 +105,12 @@ def _summarize_rows(rows: list[dict]) -> str:
     if assistant_points:
         lines.append("Assistant progress:")
         lines.extend(f"- {item}" for item in assistant_points[-4:])
+    if decision_points:
+        lines.append("Decisions so far:")
+        lines.extend(f"- {item}" for item in decision_points[-3:])
+    if pending_points:
+        lines.append("Open threads:")
+        lines.extend(f"- {item}" for item in pending_points[-3:])
     return "\n".join(lines)
 
 

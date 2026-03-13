@@ -174,6 +174,17 @@ def normalize_roma_events(*, prompt: str, raw_events: list[dict]) -> list[dict]:
                     raw=event,
                 )
             )
+        elif event_type == "status":
+            normalized.append(
+                build_event(
+                    ts="",
+                    source="live_capture",
+                    channel="roma_ws",
+                    event_type="status_update",
+                    payload={"text": event.get("text", "")},
+                    raw=event,
+                )
+            )
         elif event_type == "assistant_message":
             normalized.append(
                 build_event(

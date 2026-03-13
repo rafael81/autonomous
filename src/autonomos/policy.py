@@ -104,7 +104,9 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             fallback_tool="",
         )
     if approval_prompt:
-        return PromptPolicy(
+        return _with_tool_hint(
+            prompt,
+            PromptPolicy(
             prompt_mode="approval",
             tool_budget=1,
             max_repeated_tool_calls=1,
@@ -114,9 +116,12 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             stop_after_evidence=0,
             preferred_tools=(),
             fallback_tool="bash",
+            ),
         )
     if recovery_prompt:
-        return PromptPolicy(
+        return _with_tool_hint(
+            prompt,
+            PromptPolicy(
             prompt_mode="recovery",
             tool_budget=2,
             max_repeated_tool_calls=1,
@@ -126,9 +131,12 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             stop_after_evidence=1,
             preferred_tools=("bash",),
             fallback_tool="bash",
+            ),
         )
     if review_prompt:
-        return PromptPolicy(
+        return _with_tool_hint(
+            prompt,
+            PromptPolicy(
             prompt_mode="code_review",
             tool_budget=8,
             max_repeated_tool_calls=2,
@@ -138,9 +146,12 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             stop_after_evidence=3,
             preferred_tools=("bash", "glob_paths", "grep_text", "read_file"),
             fallback_tool="bash",
+            ),
         )
     if structure_prompt:
-        return PromptPolicy(
+        return _with_tool_hint(
+            prompt,
+            PromptPolicy(
             prompt_mode="structure_inspection",
             tool_budget=24,
             max_repeated_tool_calls=8,
@@ -150,9 +161,12 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             stop_after_evidence=5,
             preferred_tools=("list_dir", "glob_paths", "read_file", "search_files", "grep_text"),
             fallback_tool="bash",
+            ),
         )
     if inspection_prompt and verification_prompt:
-        return PromptPolicy(
+        return _with_tool_hint(
+            prompt,
+            PromptPolicy(
             prompt_mode="inspection_and_verification",
             tool_budget=8,
             max_repeated_tool_calls=2,
@@ -162,9 +176,12 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             stop_after_evidence=3,
             preferred_tools=("list_dir", "glob_paths", "grep_text", "read_file", "bash"),
             fallback_tool="bash",
+            ),
         )
     if inspection_prompt:
-        return PromptPolicy(
+        return _with_tool_hint(
+            prompt,
+            PromptPolicy(
             prompt_mode="repository_inspection",
             tool_budget=5,
             max_repeated_tool_calls=2,
@@ -174,9 +191,12 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             stop_after_evidence=2,
             preferred_tools=("list_dir", "read_file", "search_files", "grep_text", "glob_paths"),
             fallback_tool="bash",
+            ),
         )
     if verification_prompt:
-        return PromptPolicy(
+        return _with_tool_hint(
+            prompt,
+            PromptPolicy(
             prompt_mode="verification",
             tool_budget=6,
             max_repeated_tool_calls=2,
@@ -186,8 +206,41 @@ def infer_prompt_policy(prompt: str, strategy: StrategyDecision | None = None) -
             stop_after_evidence=2,
             preferred_tools=("glob_paths", "grep_text", "read_file", "bash"),
             fallback_tool="bash",
+            ),
         )
-    return DEFAULT_POLICY
+    return _with_tool_hint(prompt, DEFAULT_POLICY)
+
+
+def _with_tool_hint(prompt: str, policy: PromptPolicy) -> PromptPolicy:
+    text = prompt.lower()
+    preferred = list(policy.preferred_tools)
+    if any(token in text for token in ("glob", "pattern", "*.py", "**/")):
+        preferred = _move_tool_first(preferred, "glob_paths")
+    elif any(token in text for token in ("matching lines", "search text", "grep", "pattern in", "search for the text")):
+        preferred = _move_tool_first(preferred, "grep_text")
+    elif any(token in text for token in ("first 20 lines", "first 10 lines", "read ", "open file", "readme")):
+        preferred = _move_tool_first(preferred, "read_file")
+    elif any(token in text for token in ("top-level files", "list files", "directory", "structure")):
+        preferred = _move_tool_first(preferred, "list_dir")
+    return PromptPolicy(
+        prompt_mode=policy.prompt_mode,
+        tool_budget=policy.tool_budget,
+        max_repeated_tool_calls=policy.max_repeated_tool_calls,
+        preferred_roots=policy.preferred_roots,
+        required_roots=policy.required_roots,
+        excluded_roots=policy.excluded_roots,
+        stop_after_evidence=policy.stop_after_evidence,
+        preferred_tools=tuple(preferred),
+        fallback_tool=policy.fallback_tool,
+    )
+
+
+def _move_tool_first(tools: list[str], tool_name: str) -> list[str]:
+    if tool_name not in tools:
+        return tools
+    ordered = [tool_name]
+    ordered.extend(tool for tool in tools if tool != tool_name)
+    return ordered
 def rank_roma_attempt(prompt: str, attempt) -> tuple[int, int, int, int, int, str]:
     policy = infer_prompt_policy(prompt, getattr(attempt, "strategy", None))
     rows = read_jsonl(attempt.result.normalized_path) if attempt.result.normalized_path.exists() else []

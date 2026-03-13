@@ -56,6 +56,17 @@ class RegressionResult:
     session_dir: str
 
 
+@dataclass(frozen=True)
+class GeneralizationResult:
+    prompt: str
+    strategy_id: str
+    tool_family: str
+    closest_match_example_id: str | None
+    closest_match_score: int | None
+    final_message: str | None
+    session_dir: str
+
+
 def load_eval_suite(path: Path = DEFAULT_EVAL_SUITE_PATH) -> list[EvalCase]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     return [EvalCase(**item) for item in payload]
@@ -235,6 +246,47 @@ def write_regression_json(output_path: Path, results: list[RegressionResult]) ->
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps([asdict(result) for result in results], indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return output_path
+
+
+def run_generalization_suite(
+    *,
+    prompts: list[str],
+    profile: str,
+    cwd: Path,
+    captures_dir: Path,
+    promote_dir: Path,
+    baselines_dir: Path,
+    memory_dir: Path,
+) -> list[GeneralizationResult]:
+    results: list[GeneralizationResult] = []
+    for index, prompt in enumerate(prompts, start=1):
+        session_id = f"generalization-{index}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
+        summary: ChatRunSummary = run_chat(
+            prompt=prompt,
+            profile=profile,
+            cwd=cwd,
+            captures_dir=captures_dir / f"generalization-{index}",
+            promote_dir=promote_dir / f"generalization-{index}",
+            baselines_dir=baselines_dir,
+            memory_dir=memory_dir,
+            session_id=session_id,
+        )
+        results.append(
+            GeneralizationResult(
+                prompt=prompt,
+                strategy_id=summary.strategy_id,
+                tool_family=detect_tool_family(
+                    summary.normalized_path,
+                    request_user_input_present=getattr(summary, "request_user_input_path", None) is not None,
+                    approval_present=getattr(summary, "approval_request_path", None) is not None,
+                ),
+                closest_match_example_id=summary.closest_match_example_id,
+                closest_match_score=summary.closest_match_score,
+                final_message=summary.final_message,
+                session_dir=str(summary.session_dir),
+            )
+        )
+    return results
 
 
 def _score_against_expected_golden(example_id: str, normalized_path: Path | None, goldens_dir: Path) -> int | None:

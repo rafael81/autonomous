@@ -73,9 +73,12 @@ def build_mode_instructions(strategy: StrategyDecision, policy: PromptPolicy) ->
     elif policy.prompt_mode == "repository_inspection":
         lines.append("Inspect the repository from observed evidence and summarize the most relevant files or modules.")
         lines.append("Prefer focused reads over deep or exhaustive validation.")
+        if policy.preferred_tools:
+            lines.append(f"Prefer tools in this order when they fit the task: {', '.join(policy.preferred_tools)}.")
     elif policy.prompt_mode == "code_review":
         lines.append("Act as a reviewer for the proposed change or current diff.")
         lines.append("Return prioritized, actionable findings and keep the focus on discrete bugs or risks.")
+        lines.append("When possible, include a brief validation hint that would confirm or falsify the top finding.")
     elif policy.prompt_mode == "verification":
         lines.append("Prioritize verification evidence and report concrete results.")
 
