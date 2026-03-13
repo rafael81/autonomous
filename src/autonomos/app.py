@@ -75,6 +75,11 @@ def run_chat(
 ) -> ChatRunSummary:
     memory_turns = load_session_memory(memory_dir, session_id)
     memory_path = None
+    resolved_target_example_id = _default_target_example_id(
+        prompt=prompt,
+        baselines_dir=baselines_dir,
+        target_example_id=target_example_id,
+    )
     if profile == "roma_ws":
         attempts: list[RomaAttemptResult] = []
         retry_appendix = ""
@@ -118,7 +123,7 @@ def run_chat(
             intended_match = _resolve_intended_match(
                 comparison_results=comparison_results,
                 prompt_matched_examples=prompt_matched_examples,
-                target_example_id=target_example_id,
+                target_example_id=resolved_target_example_id,
             )
             closest_match = intended_match or best_comparison_match(comparison_results)
             attempts.append(
@@ -132,7 +137,7 @@ def run_chat(
                         default=10_000,
                     ),
                     preferred_match_score=min(
-                        (item.score for item in comparison_results if item.example_id == target_example_id),
+                        (item.score for item in comparison_results if item.example_id == resolved_target_example_id),
                         default=10_000,
                     ),
                 )
@@ -181,7 +186,7 @@ def run_chat(
         intended_match = _resolve_intended_match(
             comparison_results=comparison_results,
             prompt_matched_examples=prompt_matched_examples,
-            target_example_id=target_example_id,
+            target_example_id=resolved_target_example_id,
         )
         closest_match = intended_match or best_comparison_match(comparison_results)
         drift_summary, drift_primary_causes = _build_drift_summary(
@@ -370,6 +375,17 @@ def _resolve_intended_match(
         return None
     prompt_matched_results = [item for item in comparison_results if item.example_id in prompt_matched_examples]
     return best_comparison_match(prompt_matched_results)
+
+
+def _default_target_example_id(*, prompt: str, baselines_dir: Path, target_example_id: str | None) -> str | None:
+    if target_example_id:
+        return target_example_id
+    policy = infer_prompt_policy(prompt)
+    if policy.prompt_mode == "status_summary":
+        candidate = "codex-status-summary"
+        if (baselines_dir / candidate / "normalized.jsonl").exists():
+            return candidate
+    return None
 
 
 def _build_drift_summary(

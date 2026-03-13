@@ -1,0 +1,1 @@
+How close is this project to Codex CLI right now?

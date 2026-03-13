@@ -255,6 +255,46 @@ def test_chat_prints_drift_metadata_when_present(monkeypatch, capsys, tmp_path: 
     assert "[drift-causes] tool_routing, final_answer_formatting" in captured.out
 
 
+def test_chat_status_summary_prefers_status_golden_label(monkeypatch, capsys, tmp_path: Path):
+    class Summary:
+        final_message = "beta quality"
+        strategy_id = "simple_answer"
+        baseline_example_id = "example-01-simple-short"
+        attempted_strategies = ["simple_answer"]
+        orchestration_summary = "approval=no, request_user_input=no, retry=no"
+        session_dir = tmp_path / "capture"
+        normalized_path = None
+        promoted_example_dir = None
+        baseline_matches = 1
+        baseline_total = 16
+        comparison_summary_path = None
+        request_user_input_path = None
+        adaptive_notes = "Attempt scores: [0]"
+        memory_path = None
+        approval_request_path = None
+        intended_match_example_id = "codex-status-summary"
+        intended_match_score = 0
+        drift_summary = None
+        drift_primary_causes = []
+        closest_match_example_id = "codex-status-summary"
+        closest_match_score = 0
+
+    monkeypatch.setattr("autonomos.cli.run_chat", lambda **kwargs: Summary())
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["autonomos", "chat", "현재 codex cli와 비교했을때 프로젝트 어느정도 점수야"],
+    )
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "[strategy] simple_answer -> codex-status-summary" in captured.out
+    assert "[parity] exact match for codex-status-summary" in captured.out
+    assert "[closest-match] codex-status-summary (score=0)" in captured.out
+
+
 def test_chat_strategy_label_falls_back_to_closest_match(monkeypatch, capsys, tmp_path: Path):
     class Summary:
         final_message = "summary"

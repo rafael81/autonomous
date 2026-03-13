@@ -1,0 +1,6 @@
+{
+  "example_id": "codex-status-summary",
+  "prompt": "How close is this project to Codex CLI right now?",
+  "capture_mode": "golden_trace",
+  "source": "curated_status_summary_reference"
+}

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from autonomos.app import _build_drift_summary, _resolve_intended_match, extract_final_message
+from autonomos.app import _build_drift_summary, _default_target_example_id, _resolve_intended_match, extract_final_message
 from autonomos.baseline import BaselineComparison
 from autonomos.io import write_jsonl
 
@@ -110,3 +110,17 @@ def test_resolve_intended_match_prefers_prompt_matched_example():
 
     assert result is not None
     assert result.example_id == "codex-simple-hello"
+
+
+def test_default_target_example_id_prefers_status_summary_golden(tmp_path: Path):
+    goldens = tmp_path / "goldens" / "codex-status-summary"
+    goldens.mkdir(parents=True)
+    (goldens / "normalized.jsonl").write_text("[]", encoding="utf-8")
+
+    result = _default_target_example_id(
+        prompt="현재 codex cli와 비교했을때 프로젝트 어느정도 점수야",
+        baselines_dir=tmp_path / "goldens",
+        target_example_id=None,
+    )
+
+    assert result == "codex-status-summary"
