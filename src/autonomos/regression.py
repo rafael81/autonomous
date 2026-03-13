@@ -41,6 +41,7 @@ class RegressionResult:
     expected_artifact: str | None
     artifact_present: bool
     expected_score: int | None
+    allowed_max_score: int
     closest_match_example_id: str | None
     closest_match_score: int | None
     strategy_ok: bool
@@ -60,8 +61,18 @@ def load_eval_suite(path: Path = DEFAULT_EVAL_SUITE_PATH) -> list[EvalCase]:
     return [EvalCase(**item) for item in payload]
 
 
-def detect_tool_family(normalized_path: Path | None, *, invocation_mode: str = "chat") -> str:
+def detect_tool_family(
+    normalized_path: Path | None,
+    *,
+    invocation_mode: str = "chat",
+    request_user_input_present: bool = False,
+    approval_present: bool = False,
+) -> str:
     if normalized_path is None or not normalized_path.exists():
+        if request_user_input_present:
+            return "request_user_input"
+        if approval_present:
+            return "approval"
         return "none"
     rows = read_jsonl(normalized_path)
     event_types = [row.get("event_type") for row in rows]
@@ -77,6 +88,10 @@ def detect_tool_family(normalized_path: Path | None, *, invocation_mode: str = "
     tool_names = [row.get("payload", {}).get("tool_name", "") for row in rows if row.get("event_type") == "tool_call_request"]
     if invocation_mode == "review":
         return "review"
+    if request_user_input_present:
+        return "request_user_input"
+    if approval_present:
+        return "approval"
     if "exec_approval_request" in event_types:
         return "approval"
     if "request_user_input" in event_types:
@@ -126,7 +141,12 @@ def run_regression_suite(
             session_id=session_id,
             target_example_id=case.example_id,
         )
-        actual_tool_family = detect_tool_family(summary.normalized_path, invocation_mode=case.invocation_mode)
+        actual_tool_family = detect_tool_family(
+            summary.normalized_path,
+            invocation_mode=case.invocation_mode,
+            request_user_input_present=getattr(summary, "request_user_input_path", None) is not None,
+            approval_present=getattr(summary, "approval_request_path", None) is not None,
+        )
         expected_score = _score_against_expected_golden(case.example_id, summary.normalized_path, goldens_dir)
         strategy_ok = summary.strategy_id == case.expected_strategy
         tool_family_ok = actual_tool_family == case.expected_tool_family
@@ -145,6 +165,7 @@ def run_regression_suite(
                 expected_artifact=case.expected_artifact,
                 artifact_present=artifact_present,
                 expected_score=expected_score,
+                allowed_max_score=case.max_score,
                 closest_match_example_id=summary.closest_match_example_id,
                 closest_match_score=summary.closest_match_score,
                 strategy_ok=strategy_ok,
@@ -181,6 +202,7 @@ def build_regression_report(results: list[RegressionResult]) -> str:
                 f"- tool_family: expected={result.expected_tool_family} actual={result.actual_tool_family}",
                 f"- artifact: expected={result.expected_artifact or 'none'} present={'yes' if result.artifact_present else 'no'}",
                 f"- expected_golden_score: {result.expected_score if result.expected_score is not None else '?'}",
+                f"- allowed_max_score: {result.allowed_max_score}",
                 f"- closest_match: {result.closest_match_example_id or 'none'} score={result.closest_match_score if result.closest_match_score is not None else '?'}",
                 f"- drift: {result.drift_summary}",
                 f"- primary_causes: {', '.join(result.primary_causes) if result.primary_causes else 'none'}",

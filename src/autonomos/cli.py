@@ -36,6 +36,7 @@ from .memory import list_sessions
 from .orchestration import write_approval_response, write_request_user_input_response
 from .review import resolve_review_request
 from .regression import DEFAULT_EVAL_SUITE_PATH, load_eval_suite, run_regression_suite, write_regression_json, write_regression_report
+from .scoring import compute_parity_score, format_parity_score
 from .verification import format_verification_results, verify_runtime_against_goldens
 from .workflow import observe_prompt
 
@@ -168,6 +169,16 @@ def build_parser() -> argparse.ArgumentParser:
     run_regression.add_argument("--suite-path", default=str(DEFAULT_EVAL_SUITE_PATH), help="Path to eval suite JSON.")
     run_regression.add_argument("--report-path", default=".tmp/regression/report.md", help="Path to write markdown report.")
     run_regression.add_argument("--json-path", default=".tmp/regression/results.json", help="Path to write JSON results.")
+
+    score_parity = subparsers.add_parser("score-parity", help="Run the regression suite and compute a 10-point Codex parity score.")
+    score_parity.add_argument("--profile", default=DEFAULT_RUNTIME_PROFILE, help="Runtime profile name.")
+    score_parity.add_argument("--cwd", default=".", help="Working directory for runtime execution.")
+    score_parity.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
+    score_parity.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
+    score_parity.add_argument("--baselines-dir", default=DEFAULT_RUNTIME_BASELINES_DIR, help="Baseline examples directory.")
+    score_parity.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
+    score_parity.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
+    score_parity.add_argument("--suite-path", default=str(DEFAULT_EVAL_SUITE_PATH), help="Path to eval suite JSON.")
 
     observe = subparsers.add_parser("observe", help="Run the full observation pipeline: capture, normalize, promote, compare.")
     observe.add_argument("prompt", help="Prompt to send to codex exec.")
@@ -477,6 +488,21 @@ def main() -> int:
                     f"score={result.closest_match_score if result.closest_match_score is not None else '?'}"
                 )
             return 0 if passed == len(results) else 1
+        if args.command == "score-parity":
+            results = run_regression_suite(
+                profile=args.profile,
+                cwd=Path(args.cwd),
+                captures_dir=Path(args.captures_dir),
+                promote_dir=Path(args.promote_dir),
+                baselines_dir=Path(args.baselines_dir),
+                memory_dir=Path(args.memory_dir),
+                goldens_dir=Path(args.goldens_dir),
+                suite_path=Path(args.suite_path),
+            )
+            score = compute_parity_score(results)
+            for line in format_parity_score(score):
+                print(line)
+            return 0 if score.total_score >= score.max_score else 1
         if args.command == "observe":
             outcome = observe_prompt(
                 prompt=args.prompt,

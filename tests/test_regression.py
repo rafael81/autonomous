@@ -61,6 +61,13 @@ def test_detect_tool_family_from_request_user_input_event(tmp_path: Path):
     assert detect_tool_family(normalized) == "request_user_input"
 
 
+def test_detect_tool_family_from_request_user_input_artifact_flag(tmp_path: Path):
+    normalized = tmp_path / "normalized.jsonl"
+    write_jsonl(normalized, [])
+
+    assert detect_tool_family(normalized, request_user_input_present=True) == "request_user_input"
+
+
 def test_detect_tool_family_from_approval_event(tmp_path: Path):
     normalized = tmp_path / "normalized.jsonl"
     write_jsonl(
@@ -226,7 +233,7 @@ def test_run_regression_suite_seeds_memory_and_checks_artifact(monkeypatch, tmp_
                     "invocation_mode": "chat",
                     "memory_seed": [{"role": "user", "text": "Remember my earlier note."}],
                     "expected_strategy": "planning",
-                    "expected_tool_family": "none",
+                    "expected_tool_family": "request_user_input",
                     "max_score": 0,
                     "expected_artifact": "request_user_input",
                 }
@@ -287,6 +294,7 @@ def test_build_regression_report_lists_failures():
                     "expected_artifact": "request_user_input",
                     "artifact_present": False,
                     "expected_score": 4,
+                    "allowed_max_score": 5,
                     "closest_match_example_id": "roma-simple-hello",
                     "closest_match_score": 3,
                     "drift_summary": "tool_routing: expected tool order=['list_dir'] actual=[]",

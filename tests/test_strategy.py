@@ -2,7 +2,14 @@ from pathlib import Path
 
 from autonomos.instructions import build_full_instructions, render_user_request
 from autonomos.policy import infer_prompt_policy
-from autonomos.strategy import candidate_strategies, choose_strategy, infer_golden_strategy_hint, is_status_summary_prompt
+from autonomos.strategy import (
+    candidate_strategies,
+    choose_strategy,
+    infer_golden_strategy_hint,
+    is_request_user_input_prompt,
+    is_review_prompt,
+    is_status_summary_prompt,
+)
 
 
 def test_choose_strategy_selects_planning():
@@ -30,6 +37,23 @@ def test_choose_strategy_selects_tool_oriented_for_review():
     decision = choose_strategy("Review only the current CLI changes.")
 
     assert decision.strategy_id == "tool_oriented"
+
+
+def test_review_prompt_detection_is_explicit():
+    assert is_review_prompt("Review the current code changes and provide prioritized findings.")
+
+
+def test_request_user_input_prompt_detection_is_explicit():
+    assert is_request_user_input_prompt("Ask me to choose a direction first.")
+
+
+def test_review_prompt_outweighs_status_summary_tokens_in_diff_heavy_prompt():
+    prompt = (
+        "Review the current code changes and provide prioritized findings.\n\n"
+        "Diff excerpt:\nscore-parity\nsrc/autonomos/cli.py"
+    )
+
+    assert choose_strategy(prompt).strategy_id == "tool_oriented"
 
 
 def test_status_summary_prompt_detection_for_codex_parity_question():
@@ -73,10 +97,22 @@ def test_candidate_strategies_shortens_for_structure_inspection():
     assert [decision.strategy_id for decision in decisions] == ["tool_oriented"]
 
 
+def test_candidate_strategies_shortens_for_review_prompt():
+    decisions = candidate_strategies("Review the current code changes and provide prioritized findings.")
+
+    assert [decision.strategy_id for decision in decisions] == ["tool_oriented"]
+
+
 def test_candidate_strategies_shortens_for_status_summary_prompt():
     decisions = candidate_strategies("현재 codex cli와 비교했을때 프로젝트 어느정도 점수야")
 
     assert [decision.strategy_id for decision in decisions] == ["simple_answer"]
+
+
+def test_candidate_strategies_shortens_for_request_user_input_prompt():
+    decisions = candidate_strategies("Ask me to choose a direction first.")
+
+    assert [decision.strategy_id for decision in decisions] == ["planning"]
 
 
 def test_infer_golden_strategy_hint_uses_matching_golden_prompt(tmp_path: Path):

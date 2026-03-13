@@ -295,6 +295,29 @@ def test_chat_status_summary_prefers_status_golden_label(monkeypatch, capsys, tm
     assert "[closest-match] codex-status-summary (score=0)" in captured.out
 
 
+def test_score_parity_command_prints_numeric_score(monkeypatch, capsys):
+    class FakeResult:
+        passed = True
+        expected_score = 0
+        allowed_max_score = 0
+        strategy_ok = True
+        tool_family_ok = True
+        expected_artifact = None
+        artifact_present = False
+        artifact_ok = True
+
+    monkeypatch.setattr("autonomos.cli.run_regression_suite", lambda **kwargs: [FakeResult(), FakeResult()])
+    monkeypatch.setattr(sys, "argv", ["autonomos", "score-parity"])
+
+    exit_code = cli.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "score=10.0/10.0" in captured.out
+    assert "pass_rate=4.0/4.0" in captured.out
+    assert "summary=Autonomos currently scores 10.0/10" in captured.out
+
+
 def test_chat_strategy_label_falls_back_to_closest_match(monkeypatch, capsys, tmp_path: Path):
     class Summary:
         final_message = "summary"
