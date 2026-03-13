@@ -38,24 +38,28 @@ def get_core_prompt_family(
     raise KeyError(f"unknown Codex prompt family: {family_id}")
 
 
-def build_codex_capture_command(family: CodexPromptFamily) -> list[str]:
+def build_codex_capture_command(family: CodexPromptFamily, *, bypass_approvals_and_sandbox: bool = True) -> list[str]:
     if family.invocation_mode == "review":
-        return [
+        command = [
             "codex",
             "exec",
             "review",
             "--json",
-            "--dangerously-bypass-approvals-and-sandbox",
             "--uncommitted",
         ]
+        if bypass_approvals_and_sandbox:
+            command.insert(4, "--dangerously-bypass-approvals-and-sandbox")
+        return command
 
-    return [
+    command = [
         "codex",
         "exec",
         "--json",
-        "--dangerously-bypass-approvals-and-sandbox",
         family.prompt,
     ]
+    if bypass_approvals_and_sandbox:
+        command.insert(3, "--dangerously-bypass-approvals-and-sandbox")
+    return command
 
 
 def build_codex_capture_metadata(family: CodexPromptFamily, command: list[str]) -> dict[str, object]:

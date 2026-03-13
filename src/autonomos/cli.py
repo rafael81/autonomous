@@ -120,6 +120,11 @@ def build_parser() -> argparse.ArgumentParser:
     capture_codex_family.add_argument("--output-dir", default="codex_traces", help="Directory where canonical Codex trace captures are stored.")
     capture_codex_family.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
     capture_codex_family.add_argument("--promote-to-golden", action="store_true", help="Also import the captured normalized trace into the goldens directory.")
+    capture_codex_family.add_argument(
+        "--allow-approvals",
+        action="store_true",
+        help="Do not bypass approvals/sandbox during capture. Use this for families that need real approval artifacts.",
+    )
 
     analyze_drift = subparsers.add_parser("analyze-drift", help="Explain structured drift between two normalized traces.")
     analyze_drift.add_argument("expected", help="Expected normalized.jsonl path.")
@@ -350,7 +355,10 @@ def main() -> int:
             return 0
         if args.command == "capture-codex-family":
             family = get_core_prompt_family(args.family_id, path=Path(args.families_path))
-            command = build_codex_capture_command(family)
+            command = build_codex_capture_command(
+                family,
+                bypass_approvals_and_sandbox=not args.allow_approvals,
+            )
             result = run_capture(command, cwd=Path(args.cwd))
             capture_dir = Path(args.output_dir) / family.family_id
             saved = save_capture_snapshot(

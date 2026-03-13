@@ -347,6 +347,53 @@ def test_show_core_families_prints_configured_rows(monkeypatch, capsys, tmp_path
     assert "hello\tchat\tsimple_answer\tnone\tmax_score=0\tsay hello briefly" in captured.out
 
 
+def test_capture_codex_family_allows_non_bypass_mode(monkeypatch, capsys, tmp_path: Path):
+    families_path = tmp_path / "families.json"
+    families_path.write_text(
+        '[{"family_id":"approval","prompt":"Ask for approval.","invocation_mode":"chat","expected_strategy":"tool_oriented","expected_tool_family":"approval","max_score":5,"expected_artifact":"approval","notes":"demo"}]',
+        encoding="utf-8",
+    )
+    captured = {}
+
+    class Result:
+        command = ["codex", "exec", "--json", "Ask for approval."]
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    class Saved:
+        session_dir = tmp_path / "codex_traces" / "approval"
+        raw_jsonl_path = None
+        normalized_path = None
+
+    monkeypatch.setattr(
+        "autonomos.cli.run_capture",
+        lambda command, cwd: captured.update({"command": command, "cwd": cwd}) or Result(),
+    )
+    monkeypatch.setattr("autonomos.cli.save_capture_snapshot", lambda **kwargs: Saved())
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "autonomos",
+            "capture-codex-family",
+            "approval",
+            "--families-path",
+            str(families_path),
+            "--allow-approvals",
+            "--output-dir",
+            str(tmp_path / "codex_traces"),
+        ],
+    )
+
+    exit_code = cli.main()
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert captured["command"] == ["codex", "exec", "--json", "Ask for approval."]
+    assert "family=approval" in output
+
+
 def test_analyze_drift_prints_categories(monkeypatch, capsys, tmp_path: Path):
     expected = tmp_path / "expected.jsonl"
     actual = tmp_path / "actual.jsonl"

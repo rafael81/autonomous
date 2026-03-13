@@ -52,3 +52,33 @@ def test_build_codex_capture_command_uses_review_subcommand():
 
     assert command[:3] == ["codex", "exec", "review"]
     assert "--uncommitted" in command
+
+
+def test_build_codex_capture_command_can_disable_bypass_for_chat_family():
+    family = CodexPromptFamily(
+        family_id="approval-demo",
+        prompt="Ask for approval before risky changes.",
+        invocation_mode="chat",
+        expected_strategy="tool_oriented",
+        expected_tool_family="approval",
+        max_score=5,
+    )
+
+    command = build_codex_capture_command(family, bypass_approvals_and_sandbox=False)
+
+    assert command == ["codex", "exec", "--json", "Ask for approval before risky changes."]
+
+
+def test_build_codex_capture_command_can_disable_bypass_for_review_family():
+    family = CodexPromptFamily(
+        family_id="review-demo",
+        prompt="Review the current code changes and provide prioritized findings.",
+        invocation_mode="review",
+        expected_strategy="planning",
+        expected_tool_family="review",
+        max_score=5,
+    )
+
+    command = build_codex_capture_command(family, bypass_approvals_and_sandbox=False)
+
+    assert command == ["codex", "exec", "review", "--json", "--uncommitted"]
