@@ -143,6 +143,31 @@ def test_chat_defaults_to_roma_runtime_profile(monkeypatch, capsys, tmp_path: Pa
 
     assert exit_code == 0
     assert captured_kwargs["profile"] == "roma_ws"
+    assert captured_kwargs["baselines_dir"] == Path("goldens")
+
+
+def test_runtime_commands_default_to_goldens_baselines():
+    parser = cli.build_parser()
+
+    chat_args = parser.parse_args(["chat", "hello"])
+    review_args = parser.parse_args(["review"])
+    resume_args = parser.parse_args(["resume", "continue", "--response-file", "response.json"])
+    repl_args = parser.parse_args(["repl"])
+
+    assert chat_args.baselines_dir == "goldens"
+    assert review_args.baselines_dir == "goldens"
+    assert resume_args.baselines_dir == "goldens"
+    assert repl_args.baselines_dir == "goldens"
+
+
+def test_observe_commands_keep_examples_baselines():
+    parser = cli.build_parser()
+
+    observe_args = parser.parse_args(["observe", "inspect repo"])
+    compare_args = parser.parse_args(["compare-baselines", "normalized.jsonl"])
+
+    assert observe_args.baselines_dir == "examples"
+    assert compare_args.baselines_dir == "examples"
 
 
 def test_review_command_uses_resolved_review_prompt(monkeypatch, capsys, tmp_path: Path):

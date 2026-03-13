@@ -40,6 +40,8 @@ from .workflow import observe_prompt
 
 DEFAULT_RUNTIME_PROFILE = "roma_ws"
 DEFAULT_OBSERVE_PROFILE = "openai_ws"
+DEFAULT_RUNTIME_BASELINES_DIR = "goldens"
+DEFAULT_OBSERVE_BASELINES_DIR = "examples"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -84,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     compare_baselines = subparsers.add_parser("compare-baselines", help="Compare a normalized capture against all baseline examples.")
     compare_baselines.add_argument("normalized", help="Path to normalized capture JSONL.")
-    compare_baselines.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    compare_baselines.add_argument("--baselines-dir", default=DEFAULT_OBSERVE_BASELINES_DIR, help="Baseline examples directory.")
     compare_baselines.add_argument("--top", type=int, default=5, help="Maximum number of comparisons to print.")
 
     import_golden = subparsers.add_parser("import-golden", help="Import a normalized trace as a repo-tracked golden example.")
@@ -128,7 +130,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify_runtime.add_argument("--cwd", default=".", help="Working directory for runtime execution.")
     verify_runtime.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     verify_runtime.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
-    verify_runtime.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    verify_runtime.add_argument("--baselines-dir", default=DEFAULT_RUNTIME_BASELINES_DIR, help="Baseline examples directory.")
     verify_runtime.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     verify_runtime.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
 
@@ -140,7 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_regression.add_argument("--cwd", default=".", help="Working directory for runtime execution.")
     run_regression.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     run_regression.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
-    run_regression.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    run_regression.add_argument("--baselines-dir", default=DEFAULT_RUNTIME_BASELINES_DIR, help="Baseline examples directory.")
     run_regression.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     run_regression.add_argument("--goldens-dir", default="goldens", help="Directory where golden traces are stored.")
     run_regression.add_argument("--suite-path", default=str(DEFAULT_EVAL_SUITE_PATH), help="Path to eval suite JSON.")
@@ -153,7 +155,7 @@ def build_parser() -> argparse.ArgumentParser:
     observe.add_argument("--cwd", default=".", help="Working directory for codex exec.")
     observe.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     observe.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
-    observe.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    observe.add_argument("--baselines-dir", default=DEFAULT_OBSERVE_BASELINES_DIR, help="Baseline examples directory.")
     observe.add_argument("--example-id", help="Override promoted example id.")
 
     chat = subparsers.add_parser("chat", help="Run the user-facing chat flow and print the final assistant answer.")
@@ -162,7 +164,7 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--cwd", default=".", help="Working directory for codex exec.")
     chat.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     chat.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
-    chat.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    chat.add_argument("--baselines-dir", default=DEFAULT_RUNTIME_BASELINES_DIR, help="Baseline examples directory.")
     chat.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     chat.add_argument("--session-id", default="default", help="Logical chat session id.")
     chat.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this run.")
@@ -173,7 +175,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--cwd", default=".", help="Working directory for git and runtime execution.")
     review.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     review.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
-    review.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    review.add_argument("--baselines-dir", default=DEFAULT_RUNTIME_BASELINES_DIR, help="Baseline examples directory.")
     review.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     review.add_argument("--session-id", default="default", help="Logical chat session id.")
     review.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this run.")
@@ -199,7 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--cwd", default=".", help="Working directory for codex exec.")
     resume.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     resume.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
-    resume.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    resume.add_argument("--baselines-dir", default=DEFAULT_RUNTIME_BASELINES_DIR, help="Baseline examples directory.")
     resume.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     resume.add_argument("--session-id", default="default", help="Logical chat session id.")
     resume.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this resumed run.")
@@ -219,7 +221,7 @@ def build_parser() -> argparse.ArgumentParser:
     repl.add_argument("--cwd", default=".", help="Working directory for codex exec.")
     repl.add_argument("--captures-dir", default="captures", help="Directory where capture sessions are stored.")
     repl.add_argument("--promote-dir", default="examples_live", help="Directory where promoted examples are stored.")
-    repl.add_argument("--baselines-dir", default="examples", help="Baseline examples directory.")
+    repl.add_argument("--baselines-dir", default=DEFAULT_RUNTIME_BASELINES_DIR, help="Baseline examples directory.")
     repl.add_argument("--memory-dir", default=".autonomos/memory", help="Directory where local session memory is stored.")
     repl.add_argument("--session-id", default="default", help="Logical chat session id.")
     repl.add_argument("--new-session", action="store_true", help="Generate a fresh session id for this REPL.")
