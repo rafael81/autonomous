@@ -1,0 +1,4 @@
+interface:
+  display_name: "Autonomos Dev"
+  short_description: "Develop and tune the Autonomos agent CLI"
+  default_prompt: "Use $autonomos-dev to inspect, modify, and validate the Autonomos project safely."
