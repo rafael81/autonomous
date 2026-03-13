@@ -766,6 +766,8 @@ def _capture_runtime_family(
     promote_to_golden: bool,
 ) -> int:
     session_id = f"capture-{family.family_id}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
+    saw_approval_request = False
+    saw_request_user_input = False
     summary = run_chat(
         prompt=family.prompt,
         profile=profile,
@@ -778,6 +780,7 @@ def _capture_runtime_family(
         target_example_id=family.family_id,
     )
     if summary.request_user_input_path:
+        saw_request_user_input = True
         response_path = _write_default_request_user_input_response(summary.request_user_input_path)
         summary = run_chat(
             prompt="continue",
@@ -792,6 +795,7 @@ def _capture_runtime_family(
             target_example_id=family.family_id,
         )
     if summary.approval_request_path:
+        saw_approval_request = True
         response_path = _write_default_approval_response(summary.approval_request_path)
         summary = run_chat(
             prompt="continue",
@@ -819,8 +823,8 @@ def _capture_runtime_family(
             "capture_mode": "runtime_chat",
             "source_capture_dir": str(summary.session_dir),
             "session_id": session_id,
-            "approval_request_present": summary.approval_request_path is not None,
-            "request_user_input_present": summary.request_user_input_path is not None,
+            "approval_request_present": saw_approval_request or summary.approval_request_path is not None,
+            "request_user_input_present": saw_request_user_input or summary.request_user_input_path is not None,
         }
     )
     meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -829,9 +833,9 @@ def _capture_runtime_family(
     print(f"capture_dir={capture_dir}")
     if summary.normalized_path:
         print(f"normalized_jsonl={capture_dir / 'normalized.jsonl'}")
-    if summary.approval_request_path:
+    if saw_approval_request or summary.approval_request_path:
         print("approval_artifact=present")
-    if summary.request_user_input_path:
+    if saw_request_user_input or summary.request_user_input_path:
         print("request_user_input_artifact=present")
     if promote_to_golden and summary.normalized_path:
         example_dir = import_normalized_trace_as_example(

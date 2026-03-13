@@ -2,7 +2,7 @@
   "example_id": "codex-approval-request",
   "prompt": "Before making a risky filesystem change, ask for approval.",
   "capture_mode": "runtime_chat",
-  "captured_at": "2026-03-13T15:54:55+00:00",
+  "captured_at": "2026-03-13T15:56:24+00:00",
   "runtime": "roma_bridge",
   "returncode": 0,
   "has_raw_jsonl": true,
@@ -19,8 +19,8 @@
     "capture-runtime-family",
     "codex-approval-request"
   ],
-  "source_capture_dir": "captures/codex-approval-request/attempt-1-tool_oriented/roma-session-20260313T155455Z",
-  "session_id": "capture-codex-approval-request-20260313T155452620023Z",
-  "approval_request_present": false,
+  "source_capture_dir": "captures/codex-approval-request/attempt-1-simple_answer/roma-session-20260313T155624Z",
+  "session_id": "capture-codex-approval-request-20260313T155619302524Z",
+  "approval_request_present": true,
   "request_user_input_present": false
 }

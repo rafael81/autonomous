@@ -34,3 +34,15 @@ def test_orchestration_retries_on_high_mismatch():
 
     assert decision.should_retry is True
     assert decision.retry_reason == "baseline mismatch remains high"
+
+
+def test_orchestration_requires_approval_for_explicit_approval_prompt():
+    strategy = choose_strategy("Ask for approval before deleting the file.")
+    decision = decide_orchestration(
+        strategy=strategy,
+        comparison_results=[],
+        has_normalized_output=True,
+        prompt="Ask for approval before deleting the file.",
+    )
+
+    assert decision.requires_approval is True

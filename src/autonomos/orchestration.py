@@ -150,7 +150,16 @@ def decide_orchestration(
     prompt: str,
 ) -> OrchestrationDecision:
     text = prompt.lower()
-    requires_approval = strategy.sandbox_mode != "read-only" and not strategy.prefer_full_auto
+    explicit_approval_prompt = (
+        "approval" in text
+        or "approve" in text
+        or "ask for approval" in text
+        or "승인" in text
+    )
+    requires_approval = (
+        strategy.sandbox_mode != "read-only"
+        and (explicit_approval_prompt or not strategy.prefer_full_auto)
+    )
     should_request_user_input = (
         "choose" in text
         or "which" in text
