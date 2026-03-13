@@ -58,7 +58,7 @@ def test_tui_submit_updates_transcript(monkeypatch, tmp_path: Path):
         async with app.run_test() as pilot:
             composer = app.query_one("#composer")
             composer.text = "hello"
-            await pilot.press("ctrl+j")
+            await pilot.press("enter")
             await pilot.pause()
             await pilot.pause()
 

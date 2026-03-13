@@ -8,6 +8,8 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
+from textual.events import Key
+from textual.message import Message
 from textual.widgets import Button, Footer, Header, RichLog, Static, TextArea
 
 from .app import run_chat
@@ -25,6 +27,19 @@ class TuiConfig:
     baselines_dir: Path
     memory_dir: Path
     session_id: str
+
+
+class ChatComposer(TextArea):
+    class SubmitRequested(Message):
+        pass
+
+    def on_key(self, event: Key) -> None:
+        if event.key == "enter":
+            event.prevent_default()
+            event.stop()
+            self.post_message(self.SubmitRequested())
+            return
+        super().on_key(event)
 
 
 class AutonomosTui(App[None]):
@@ -63,7 +78,6 @@ class AutonomosTui(App[None]):
     """
 
     BINDINGS = [
-        ("ctrl+j", "submit", "Submit"),
         ("ctrl+l", "clear_composer", "Clear"),
         ("ctrl+r", "refresh_sessions", "Sessions"),
         ("ctrl+c", "quit", "Quit"),
@@ -86,9 +100,8 @@ class AutonomosTui(App[None]):
                 yield Static("", id="diagnostics")
                 yield Static("", id="sessions")
         with Container(id="controls", classes="panel"):
-            yield TextArea(id="composer")
+            yield ChatComposer(id="composer")
             with Horizontal():
-                yield Button("Submit", id="submit", variant="primary")
                 yield Button("Approve", id="approve")
                 yield Button("Decline", id="decline")
                 yield Button("Use Recommended", id="choose")
@@ -110,9 +123,7 @@ class AutonomosTui(App[None]):
         self._refresh_sessions()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "submit":
-            self._submit_from_composer()
-        elif event.button.id == "refresh":
+        if event.button.id == "refresh":
             self._refresh_sessions()
         elif event.button.id == "approve":
             self._handle_approval("Approve")
@@ -120,6 +131,9 @@ class AutonomosTui(App[None]):
             self._handle_approval("Decline")
         elif event.button.id == "choose":
             self._handle_user_input_choice()
+
+    def on_chat_composer_submit_requested(self, _: ChatComposer.SubmitRequested) -> None:
+        self._submit_from_composer()
 
     def _submit_from_composer(self) -> None:
         if self._busy:
