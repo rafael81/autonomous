@@ -5,9 +5,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+from datetime import datetime, UTC
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
+from textual.css.query import NoMatches
+from textual.events import Focus, Key
 from textual.widgets import Button, Footer, Header, Input, Static
 
 from .app import run_chat
@@ -25,9 +28,12 @@ class TuiConfig:
     baselines_dir: Path
     memory_dir: Path
     session_id: str
+    debug_log_path: Path | None = None
 
 
 class AutonomosTui(App[None]):
+    AUTO_FOCUS = "#composer"
+
     CSS = """
     Screen {
         layout: vertical;
@@ -82,6 +88,7 @@ class AutonomosTui(App[None]):
         self.config = config
         self.state = TuiSessionState(session_id=config.session_id, memory_dir=config.memory_dir)
         self._busy = False
+        self._debug_log_path = config.debug_log_path or (config.memory_dir.parent / "tui-debug.log")
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -104,13 +111,52 @@ class AutonomosTui(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
+        self._debug("mount")
         self._refresh_sidebar()
         self._append_transcript(f"status> session {self.config.session_id} ready")
+        self.call_after_refresh(self._focus_composer)
+        self.set_timer(0.05, self._focus_composer)
+        self.set_timer(0.2, self._focus_composer)
 
     def on_ready(self) -> None:
+        self._debug("ready")
         for button in self.query(Button):
             button.can_focus = False
-        self.set_timer(0.05, self._focus_composer)
+        self._focus_composer()
+
+    def on_focus(self, event: Focus) -> None:
+        widget = getattr(event, "control", None) or event.screen.focused
+        widget_id = getattr(widget, "id", None)
+        self._debug(f"focus widget={type(widget).__name__ if widget else 'None'} id={widget_id}")
+
+    def on_key(self, event: Key) -> None:
+        if event.is_printable and event.character:
+            composer = self._get_composer()
+            if composer is None:
+                return
+            composer.value += event.character
+            self._debug(f"app_key printable value={composer.value!r}")
+            event.prevent_default()
+            event.stop()
+            return
+        if event.key == "backspace":
+            composer = self._get_composer()
+            if composer is None:
+                return
+            composer.value = composer.value[:-1]
+            self._debug(f"app_key backspace value={composer.value!r}")
+            event.prevent_default()
+            event.stop()
+            return
+        if event.key == "enter":
+            composer = self._get_composer()
+            if composer is None:
+                return
+            self._debug(f"app_key enter value={composer.value!r}")
+            event.prevent_default()
+            event.stop()
+            self._submit_from_composer()
+            return
 
     def action_submit(self) -> None:
         self._submit_from_composer()
@@ -135,18 +181,35 @@ class AutonomosTui(App[None]):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "composer":
             return
+        self._debug(f"input_submitted value={event.value!r}")
         self._submit_from_composer()
 
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "composer":
+            return
+        self._debug(f"input_changed value={event.value!r}")
+
     def _focus_composer(self) -> None:
-        composer = self.query_one("#composer", Input)
+        composer = self._get_composer()
+        if composer is None:
+            return
         self.set_focus(composer)
+        self._debug("focus_composer")
+
+    def _get_composer(self) -> Input | None:
+        try:
+            return self.query_one("#composer", Input)
+        except NoMatches:
+            return None
 
     def _submit_from_composer(self) -> None:
         if self._busy:
+            self._debug("submit blocked busy")
             self._append_transcript("status> already running")
             return
         composer = self.query_one("#composer", Input)
         prompt = composer.value.strip()
+        self._debug(f"submit prompt={prompt!r}")
         if not prompt:
             self._focus_composer()
             return
@@ -206,6 +269,7 @@ class AutonomosTui(App[None]):
         approval_response_path: Path | None = None,
     ) -> None:
         self._busy = True
+        self._debug(f"run_prompt start prompt={prompt!r}")
         self._set_status(f"running {self.state.session_id}")
         self._append_transcript("status> Roma is thinking...")
         prior_len = len(self.state.transcript_lines)
@@ -223,6 +287,12 @@ class AutonomosTui(App[None]):
             approval_response_path=approval_response_path,
         )
         self.state.apply_summary(summary)
+        self._debug(
+            "run_prompt done "
+            f"final={summary.final_message!r} "
+            f"strategy={summary.strategy_id!r} "
+            f"normalized={summary.normalized_path!s}"
+        )
         await self._render_new_transcript_lines(prior_len)
         self._refresh_sidebar()
         self._busy = False
@@ -292,6 +362,7 @@ class AutonomosTui(App[None]):
 
     def _replace_transcript(self, lines: list[str]) -> None:
         self.query_one("#transcript", Static).update("\n".join(lines))
+        self._debug(f"replace_transcript count={len(lines)}")
 
     async def _render_new_transcript_lines(self, prior_len: int) -> None:
         new_lines = self.state.transcript_lines[prior_len:]
@@ -313,6 +384,7 @@ class AutonomosTui(App[None]):
     def _append_transcript(self, line: str) -> None:
         self.state.transcript_lines.append(line)
         self._replace_transcript(self.state.transcript_lines)
+        self._debug(f"append_transcript line={line!r}")
 
     def _set_status(self, text: str) -> None:
         self.query_one("#statusbar", Static).update(text)
@@ -320,6 +392,12 @@ class AutonomosTui(App[None]):
     def _status_text(self) -> str:
         state = "busy" if self._busy else "idle"
         return f"Autonomos TUI | {state} | session={self.state.session_id}"
+
+    def _debug(self, message: str) -> None:
+        self._debug_log_path.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(UTC).isoformat()
+        with self._debug_log_path.open("a", encoding="utf-8") as handle:
+            handle.write(f"{timestamp} {self.config.session_id} {message}\n")
 
 
 def run_tui(config: TuiConfig) -> None:
