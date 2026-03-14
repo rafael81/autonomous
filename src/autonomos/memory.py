@@ -18,6 +18,9 @@ class MemoryTurn:
 SUMMARY_ROLE = "summary"
 SUMMARY_TRIGGER_TURNS = 10
 SUMMARY_KEEP_RECENT = 6
+FAILED_ASSISTANT_MESSAGES = {
+    "No output generated. Check the stream for errors.",
+}
 
 
 def load_session_memory(memory_root: Path, session_id: str) -> list[MemoryTurn]:
@@ -44,8 +47,16 @@ def append_session_memory(memory_root: Path, session_id: str, turns: list[Memory
 def render_memory_context(turns: list[MemoryTurn], limit: int = 6) -> str:
     if not turns:
         return ""
-    summary_turns = [turn for turn in turns if turn.role == SUMMARY_ROLE]
-    conversational = [turn for turn in turns if turn.role != SUMMARY_ROLE]
+    summary_turns = [
+        turn for turn in turns
+        if turn.role == SUMMARY_ROLE and not _is_failed_memory_turn(turn)
+    ]
+    conversational = [
+        turn for turn in turns
+        if turn.role != SUMMARY_ROLE and not _is_failed_memory_turn(turn)
+    ]
+    if not summary_turns and not conversational:
+        return ""
     selected = conversational[-limit:]
     lines = ["Recent conversation context:"]
     if summary_turns:
@@ -53,6 +64,15 @@ def render_memory_context(turns: list[MemoryTurn], limit: int = 6) -> str:
     for turn in selected:
         lines.append(f"- {turn.role}: {turn.text}")
     return "\n".join(lines) + "\n\n"
+
+
+def _is_failed_memory_turn(turn: MemoryTurn) -> bool:
+    text = turn.text.strip()
+    if turn.role == "assistant" and text in FAILED_ASSISTANT_MESSAGES:
+        return True
+    if turn.role == SUMMARY_ROLE and "No output generated. Check the stream for errors." in text:
+        return True
+    return False
 
 
 def compact_session_rows(rows: list[dict]) -> list[dict]:

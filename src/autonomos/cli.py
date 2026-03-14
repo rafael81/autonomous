@@ -767,7 +767,7 @@ def main() -> int:
                     _print_repl_summary(follow_up)
             return 0
         if args.command == "tui":
-            session_id = _resolve_session_id(args.session_id, args.new_session)
+            session_id = _resolve_tui_session_id(args.session_id, args.new_session)
             from .tui_app import TuiConfig, run_tui
 
             run_tui(
@@ -1095,6 +1095,12 @@ def _resolve_session_id(session_id: str, new_session: bool) -> str:
     if not new_session:
         return session_id
     return datetime.now(UTC).strftime("session-%Y%m%dT%H%M%SZ")
+
+
+def _resolve_tui_session_id(session_id: str, new_session: bool) -> str:
+    if new_session or session_id != "default":
+        return _resolve_session_id(session_id, new_session)
+    return _resolve_session_id("default", True)
 
 
 def _read_session_summary(memory_dir: Path, session_id: str) -> str | None:

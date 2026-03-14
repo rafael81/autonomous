@@ -82,6 +82,13 @@ def test_resolve_session_id_can_generate_new_id():
     assert session_id != "default"
 
 
+def test_resolve_tui_session_id_generates_new_id_for_default():
+    session_id = cli._resolve_tui_session_id("default", False)
+
+    assert session_id.startswith("session-")
+    assert session_id != "default"
+
+
 def test_chat_new_session_uses_generated_id(monkeypatch, capsys, tmp_path: Path):
     captured_kwargs = {}
 

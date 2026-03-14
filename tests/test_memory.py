@@ -40,3 +40,18 @@ def test_render_memory_context_includes_summary_and_recent_turns(tmp_path):
     assert "Session summary:" in rendered
     assert "Decisions so far:" in rendered
     assert "Open threads:" in rendered
+
+
+def test_render_memory_context_skips_failed_output_turns():
+    rendered = render_memory_context(
+        [
+            MemoryTurn(role="summary", text="Session summary:\n- No output generated. Check the stream for errors."),
+            MemoryTurn(role="assistant", text="No output generated. Check the stream for errors."),
+            MemoryTurn(role="user", text="hello"),
+            MemoryTurn(role="assistant", text="Hi there"),
+        ]
+    )
+
+    assert "No output generated" not in rendered
+    assert "- user: hello" in rendered
+    assert "- assistant: Hi there" in rendered
