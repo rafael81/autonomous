@@ -33,13 +33,13 @@ class ChatComposer(TextArea):
     class SubmitRequested(Message):
         pass
 
-    def on_key(self, event: Key) -> None:
+    async def _on_key(self, event: Key) -> None:
         if event.key == "enter":
             event.prevent_default()
             event.stop()
             self.post_message(self.SubmitRequested())
             return
-        super().on_key(event)
+        await super()._on_key(event)
 
 
 class AutonomosTui(App[None]):

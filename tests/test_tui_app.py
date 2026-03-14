@@ -1,6 +1,8 @@
 import asyncio
 from pathlib import Path
 
+from textual.events import Key
+
 from autonomos.app import ChatRunSummary
 from autonomos.io import write_jsonl
 from autonomos.tui_app import AutonomosTui, TuiConfig
@@ -66,3 +68,25 @@ def test_tui_submit_updates_transcript(monkeypatch, tmp_path: Path):
 
     assert app.state.last_summary is not None
     assert "assistant> done" in app.state.transcript_lines
+
+
+def test_tui_composer_accepts_printable_ime_keys(tmp_path: Path):
+    app = AutonomosTui(
+        TuiConfig(
+            profile="roma_ws",
+            cwd=Path("."),
+            captures_dir=tmp_path / "captures",
+            promote_dir=tmp_path / "examples_live",
+            baselines_dir=tmp_path / "goldens",
+            memory_dir=tmp_path / "memory",
+            session_id="demo",
+        )
+    )
+
+    async def run_scenario() -> None:
+        async with app.run_test() as _pilot:
+            composer = app.query_one("#composer")
+            await composer._on_key(Key("안", "안"))
+            assert "안" in composer.text
+
+    asyncio.run(run_scenario())
