@@ -86,7 +86,31 @@ def test_tui_composer_accepts_printable_ime_keys(tmp_path: Path):
     async def run_scenario() -> None:
         async with app.run_test() as _pilot:
             composer = app.query_one("#composer")
+            assert composer.has_focus
             await composer._on_key(Key("안", "안"))
             assert "안" in composer.text
+
+    asyncio.run(run_scenario())
+
+
+def test_tui_focuses_composer_and_accepts_typed_text(tmp_path: Path):
+    app = AutonomosTui(
+        TuiConfig(
+            profile="roma_ws",
+            cwd=Path("."),
+            captures_dir=tmp_path / "captures",
+            promote_dir=tmp_path / "examples_live",
+            baselines_dir=tmp_path / "goldens",
+            memory_dir=tmp_path / "memory",
+            session_id="demo",
+        )
+    )
+
+    async def run_scenario() -> None:
+        async with app.run_test() as pilot:
+            composer = app.query_one("#composer")
+            assert composer.has_focus
+            await pilot.press("h", "e", "l", "l", "o")
+            assert composer.text == "hello"
 
     asyncio.run(run_scenario())

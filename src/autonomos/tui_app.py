@@ -71,8 +71,13 @@ class AutonomosTui(App[None]):
     }
     #composer {
         height: 8;
+        min-height: 8;
     }
     #controls {
+        height: auto;
+    }
+    #composer-hint {
+        color: $text-muted;
         height: auto;
     }
     """
@@ -100,7 +105,8 @@ class AutonomosTui(App[None]):
                 yield Static("", id="diagnostics")
                 yield Static("", id="sessions")
         with Container(id="controls", classes="panel"):
-            yield ChatComposer(id="composer")
+            yield Static("Enter submits. Shift+Enter inserts a newline. Use /sessions, /context, /session <id>, /approve, /decline, /choose.", id="composer-hint")
+            yield ChatComposer(id="composer", soft_wrap=True, show_line_numbers=False, tab_behavior="indent")
             with Horizontal():
                 yield Button("Approve", id="approve")
                 yield Button("Decline", id="decline")
@@ -109,7 +115,7 @@ class AutonomosTui(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#composer", TextArea).focus()
+        self.call_after_refresh(self._focus_composer)
         self._refresh_sidebar()
         self._append_transcript(f"status> session {self.config.session_id} ready")
 
@@ -118,6 +124,7 @@ class AutonomosTui(App[None]):
 
     def action_clear_composer(self) -> None:
         self.query_one("#composer", TextArea).text = ""
+        self._focus_composer()
 
     def action_refresh_sessions(self) -> None:
         self._refresh_sessions()
@@ -135,6 +142,9 @@ class AutonomosTui(App[None]):
     def on_chat_composer_submit_requested(self, _: ChatComposer.SubmitRequested) -> None:
         self._submit_from_composer()
 
+    def _focus_composer(self) -> None:
+        self.query_one("#composer", TextArea).focus()
+
     def _submit_from_composer(self) -> None:
         if self._busy:
             self._append_transcript("status> already running")
@@ -142,9 +152,11 @@ class AutonomosTui(App[None]):
         composer = self.query_one("#composer", TextArea)
         prompt = composer.text.strip()
         if not prompt:
+            self._focus_composer()
             return
         composer.text = ""
         if self._handle_builtin_command(prompt):
+            self._focus_composer()
             return
         self.state.add_user_prompt(prompt)
         self._append_transcript(f"user> {prompt}")
@@ -219,6 +231,7 @@ class AutonomosTui(App[None]):
         self._refresh_sidebar()
         self._busy = False
         self._set_status(f"idle {self.state.session_id}")
+        self._focus_composer()
 
     def _handle_approval(self, decision: str, *, notes: str = "") -> None:
         if self._busy:
