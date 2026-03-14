@@ -53,22 +53,22 @@ def test_tui_submit_updates_transcript(monkeypatch, tmp_path: Path):
             session_id="demo",
         )
     )
-    rendered_text: str = ""
+    rendered_lines: list[str] = []
 
     async def run_scenario() -> None:
-        nonlocal rendered_text
+        nonlocal rendered_lines
         async with app.run_test() as pilot:
             composer = app.query_one("#composer")
             await pilot.press("h", "e", "l", "l", "o", "enter")
             await pilot.pause()
             await pilot.pause()
-            rendered_text = str(app.query_one("#transcript").renderable)
+            rendered_lines = list(app.query_one("#transcript").lines)
 
     asyncio.run(run_scenario())
 
     assert app.state.last_summary is not None
     assert "assistant> done" in app.state.transcript_lines
-    assert "assistant> done" in rendered_text
+    assert any("assistant> done" in line for line in rendered_lines)
 
 
 def test_tui_composer_accepts_printable_ime_keys(tmp_path: Path):

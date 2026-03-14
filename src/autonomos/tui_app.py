@@ -12,7 +12,7 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual import events
 from textual.events import Focus, Key
-from textual.widgets import Button, Footer, Header, Input, Static
+from textual.widgets import Button, Footer, Header, Input, Log, Static
 
 from .app import run_chat
 from .memory import list_sessions
@@ -96,7 +96,12 @@ class AutonomosTui(App[None]):
         yield Static(self._status_text(), id="statusbar", classes="panel")
         with Horizontal(id="body"):
             with Vertical(id="left-pane"):
-                yield Static("", id="transcript", classes="panel")
+                yield Log(
+                    id="transcript",
+                    classes="panel",
+                    auto_scroll=True,
+                    highlight=False,
+                )
             with Vertical(id="right-pane", classes="panel"):
                 yield Static("", id="parity")
                 yield Static("", id="diagnostics")
@@ -364,7 +369,10 @@ class AutonomosTui(App[None]):
         return lines
 
     def _replace_transcript(self, lines: list[str]) -> None:
-        self.query_one("#transcript", Static).update("\n".join(lines))
+        transcript = self.query_one("#transcript", Log)
+        transcript.clear()
+        for line in lines:
+            transcript.write_line(line)
         self._debug(f"replace_transcript count={len(lines)}")
 
     async def _render_new_transcript_lines(self, prior_len: int) -> None:
