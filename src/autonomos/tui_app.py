@@ -10,6 +10,7 @@ from datetime import datetime, UTC
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.css.query import NoMatches
+from textual import events
 from textual.events import Focus, Key
 from textual.widgets import Button, Footer, Header, Input, Static
 
@@ -118,11 +119,13 @@ class AutonomosTui(App[None]):
         self.set_timer(0.05, self._focus_composer)
         self.set_timer(0.2, self._focus_composer)
 
-    def on_ready(self) -> None:
-        self._debug("ready")
+    def on_ready(self, event: events.Ready) -> None:
+        event.stop()
+        self._debug(f"ready app_focus={self.app_focus}")
         for button in self.query(Button):
             button.can_focus = False
         self._focus_composer()
+        self.set_timer(0.05, self._focus_composer)
 
     def on_focus(self, event: Focus) -> None:
         widget = getattr(event, "control", None) or event.screen.focused
