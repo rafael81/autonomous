@@ -1,8 +1,6 @@
 import asyncio
 from pathlib import Path
 
-from textual.events import Key
-
 from autonomos.app import ChatRunSummary
 from autonomos.io import write_jsonl
 from autonomos.tui_app import AutonomosTui, TuiConfig
@@ -55,19 +53,22 @@ def test_tui_submit_updates_transcript(monkeypatch, tmp_path: Path):
             session_id="demo",
         )
     )
+    rendered_text: str = ""
 
     async def run_scenario() -> None:
+        nonlocal rendered_text
         async with app.run_test() as pilot:
             composer = app.query_one("#composer")
-            composer.text = "hello"
-            await pilot.press("enter")
+            await pilot.press("h", "e", "l", "l", "o", "enter")
             await pilot.pause()
             await pilot.pause()
+            rendered_text = str(app.query_one("#transcript").renderable)
 
     asyncio.run(run_scenario())
 
     assert app.state.last_summary is not None
     assert "assistant> done" in app.state.transcript_lines
+    assert "assistant> done" in rendered_text
 
 
 def test_tui_composer_accepts_printable_ime_keys(tmp_path: Path):
@@ -84,11 +85,13 @@ def test_tui_composer_accepts_printable_ime_keys(tmp_path: Path):
     )
 
     async def run_scenario() -> None:
-        async with app.run_test() as _pilot:
+        async with app.run_test() as pilot:
+            await pilot.pause()
             composer = app.query_one("#composer")
+            assert app.focused is composer
             assert composer.has_focus
-            await composer._on_key(Key("안", "안"))
-            assert "안" in composer.text
+            await pilot.press("안")
+            assert "안" in composer.value
 
     asyncio.run(run_scenario())
 
@@ -108,9 +111,13 @@ def test_tui_focuses_composer_and_accepts_typed_text(tmp_path: Path):
 
     async def run_scenario() -> None:
         async with app.run_test() as pilot:
+            await pilot.pause()
             composer = app.query_one("#composer")
+            assert app.focused is composer
             assert composer.has_focus
             await pilot.press("h", "e", "l", "l", "o")
-            assert composer.text == "hello"
+            assert composer.value == "hello"
+            transcript = app.query_one("#transcript")
+            assert transcript.region.height > 0
 
     asyncio.run(run_scenario())

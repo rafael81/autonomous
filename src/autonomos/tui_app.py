@@ -8,9 +8,7 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.events import Key
-from textual.message import Message
-from textual.widgets import Button, Footer, Header, RichLog, Static, TextArea
+from textual.widgets import Button, Footer, Header, Input, Static
 
 from .app import run_chat
 from .memory import list_sessions
@@ -29,19 +27,6 @@ class TuiConfig:
     session_id: str
 
 
-class ChatComposer(TextArea):
-    class SubmitRequested(Message):
-        pass
-
-    async def _on_key(self, event: Key) -> None:
-        if event.key == "enter":
-            event.prevent_default()
-            event.stop()
-            self.post_message(self.SubmitRequested())
-            return
-        await super()._on_key(event)
-
-
 class AutonomosTui(App[None]):
     CSS = """
     Screen {
@@ -52,9 +37,11 @@ class AutonomosTui(App[None]):
     }
     #left-pane {
         width: 3fr;
+        height: 1fr;
     }
     #right-pane {
         width: 2fr;
+        height: 1fr;
     }
     .panel {
         border: solid $panel;
@@ -62,16 +49,18 @@ class AutonomosTui(App[None]):
     }
     #transcript {
         height: 1fr;
+        min-height: 8;
     }
     #sidebar {
         height: 1fr;
     }
     #parity, #diagnostics, #sessions {
         height: 1fr;
+        min-height: 3;
     }
     #composer {
-        height: 8;
-        min-height: 8;
+        height: auto;
+        min-height: 3;
     }
     #controls {
         height: auto;
@@ -99,14 +88,14 @@ class AutonomosTui(App[None]):
         yield Static(self._status_text(), id="statusbar", classes="panel")
         with Horizontal(id="body"):
             with Vertical(id="left-pane"):
-                yield RichLog(id="transcript", classes="panel", wrap=True, markup=False)
+                yield Static("", id="transcript", classes="panel")
             with Vertical(id="right-pane", classes="panel"):
                 yield Static("", id="parity")
                 yield Static("", id="diagnostics")
                 yield Static("", id="sessions")
         with Container(id="controls", classes="panel"):
-            yield Static("Enter submits. Shift+Enter inserts a newline. Use /sessions, /context, /session <id>, /approve, /decline, /choose.", id="composer-hint")
-            yield ChatComposer(id="composer", soft_wrap=True, show_line_numbers=False, tab_behavior="indent")
+            yield Static("Type a prompt and press Enter. Use /sessions, /context, /session <id>, /approve, /decline, /choose.", id="composer-hint")
+            yield Input(placeholder="Ask Autonomos...", id="composer")
             with Horizontal():
                 yield Button("Approve", id="approve")
                 yield Button("Decline", id="decline")
@@ -115,15 +104,19 @@ class AutonomosTui(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.call_after_refresh(self._focus_composer)
         self._refresh_sidebar()
         self._append_transcript(f"status> session {self.config.session_id} ready")
+
+    def on_ready(self) -> None:
+        for button in self.query(Button):
+            button.can_focus = False
+        self.set_timer(0.05, self._focus_composer)
 
     def action_submit(self) -> None:
         self._submit_from_composer()
 
     def action_clear_composer(self) -> None:
-        self.query_one("#composer", TextArea).text = ""
+        self.query_one("#composer", Input).value = ""
         self._focus_composer()
 
     def action_refresh_sessions(self) -> None:
@@ -139,22 +132,25 @@ class AutonomosTui(App[None]):
         elif event.button.id == "choose":
             self._handle_user_input_choice()
 
-    def on_chat_composer_submit_requested(self, _: ChatComposer.SubmitRequested) -> None:
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "composer":
+            return
         self._submit_from_composer()
 
     def _focus_composer(self) -> None:
-        self.query_one("#composer", TextArea).focus()
+        composer = self.query_one("#composer", Input)
+        self.set_focus(composer)
 
     def _submit_from_composer(self) -> None:
         if self._busy:
             self._append_transcript("status> already running")
             return
-        composer = self.query_one("#composer", TextArea)
-        prompt = composer.text.strip()
+        composer = self.query_one("#composer", Input)
+        prompt = composer.value.strip()
         if not prompt:
             self._focus_composer()
             return
-        composer.text = ""
+        composer.value = ""
         if self._handle_builtin_command(prompt):
             self._focus_composer()
             return
@@ -174,8 +170,8 @@ class AutonomosTui(App[None]):
             self._append_transcript(self.state.context_text().strip())
             return True
         if prompt == "/clear":
-            self.query_one("#transcript", RichLog).clear()
             self.state.transcript_lines.clear()
+            self._replace_transcript(self.state.transcript_lines)
             return True
         if prompt == "/new":
             self.state.session_id = f"session-{asyncio.get_event_loop().time():.0f}"
@@ -295,31 +291,28 @@ class AutonomosTui(App[None]):
         return lines
 
     def _replace_transcript(self, lines: list[str]) -> None:
-        log = self.query_one("#transcript", RichLog)
-        log.clear()
-        for line in lines:
-            log.write(line)
+        self.query_one("#transcript", Static).update("\n".join(lines))
 
     async def _render_new_transcript_lines(self, prior_len: int) -> None:
-        log = self.query_one("#transcript", RichLog)
         new_lines = self.state.transcript_lines[prior_len:]
+        if not new_lines:
+            return
         if prior_len == 0:
             self._replace_transcript(self.state.transcript_lines)
             return
         if len(new_lines) > 14:
             batch_size = 4
             for index in range(0, len(new_lines), batch_size):
-                for line in new_lines[index:index + batch_size]:
-                    log.write(line)
+                self._replace_transcript(self.state.transcript_lines[: prior_len + index + batch_size])
                 await asyncio.sleep(0.02)
             return
-        for line in new_lines:
-            log.write(line)
+        for offset, _line in enumerate(new_lines, start=1):
+            self._replace_transcript(self.state.transcript_lines[: prior_len + offset])
             await asyncio.sleep(0.03)
 
     def _append_transcript(self, line: str) -> None:
         self.state.transcript_lines.append(line)
-        self.query_one("#transcript", RichLog).write(line)
+        self._replace_transcript(self.state.transcript_lines)
 
     def _set_status(self, text: str) -> None:
         self.query_one("#statusbar", Static).update(text)
